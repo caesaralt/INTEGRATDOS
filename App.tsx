@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
   FileText, 
@@ -30,7 +30,7 @@ import {
   ChevronRight,
   Briefcase,
   Folder,
-  Calendar,
+  Calendar as CalendarIcon,
   Package,
   CreditCard,
   Menu,
@@ -47,14 +47,177 @@ import {
   MapPin,
   Filter,
   Download,
-  ExternalLink
+  ExternalLink,
+  MousePointer2,
+  Move,
+  Minus,
+  RotateCw,
+  Sparkles,
+  X,
+  BarChart3,
+  PieChart,
+  TrendingUp,
+  Activity,
+  ArrowUpRight,
+  ArrowDownLeft
 } from 'lucide-react';
 import AIAssistant from './components/AIAssistant';
+import { User, UserRole, CanvasItem } from './types';
 
 // --- Types ---
 type ViewState = 'dashboard' | 'crm' | 'quotes' | 'canvas' | 'mapping' | 'board' | 'cad' | 'learning' | 'ops' | 'admin';
 
-// --- Sub-components ---
+// --- Helper Components ---
+
+// Minimalist Stat Card (Clickable)
+const StatCard = ({ title, value, trend, icon: Icon, onClick, active }: { title: string, value: string, trend?: string, icon: any, onClick: () => void, active?: boolean }) => (
+  <button 
+    onClick={onClick}
+    className={`p-6 rounded-2xl border transition-all duration-300 text-left w-full group relative overflow-hidden ${
+      active 
+        ? 'bg-slate-900 text-white border-slate-900 shadow-xl scale-105' 
+        : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-lg'
+    }`}
+  >
+    <div className="flex justify-between items-start mb-4">
+      <div className={`p-2 rounded-lg ${active ? 'bg-white/10' : 'bg-slate-50 dark:bg-slate-700'} transition-colors`}>
+        <Icon size={20} className={active ? 'text-white' : 'text-slate-600 dark:text-slate-300'} />
+      </div>
+      {trend && (
+        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+          trend.startsWith('+') 
+            ? (active ? 'bg-green-500/20 text-green-300' : 'bg-green-100 text-green-600') 
+            : (active ? 'bg-red-500/20 text-red-300' : 'bg-red-100 text-red-600')
+        }`}>
+          {trend}
+        </span>
+      )}
+    </div>
+    <div className="space-y-1">
+      <h3 className={`text-sm font-medium ${active ? 'text-slate-400' : 'text-slate-500 dark:text-slate-400'}`}>{title}</h3>
+      <p className={`text-2xl font-bold tracking-tight ${active ? 'text-white' : 'text-slate-900 dark:text-white'}`}>{value}</p>
+    </div>
+  </button>
+);
+
+// Custom SVG Charts
+const RevenueChart = () => {
+  const data = [10, 25, 15, 35, 20, 45, 30, 55, 40, 70];
+  const width = 600;
+  const height = 200;
+  const max = 80;
+  const step = width / (data.length - 1);
+  
+  const points = data.map((d, i) => `${i * step},${height - (d / max) * height}`).join(' ');
+  const areaPoints = `0,${height} ${points} ${width},${height}`;
+
+  return (
+    <div className="w-full h-64 relative">
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
+         {/* Gradients */}
+         <defs>
+           <linearGradient id="grad1" x1="0%" y1="0%" x2="0%" y2="100%">
+             <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2"/>
+             <stop offset="100%" stopColor="#3b82f6" stopOpacity="0"/>
+           </linearGradient>
+         </defs>
+         {/* Grid */}
+         {[0.2, 0.4, 0.6, 0.8].map(p => (
+           <line key={p} x1="0" y1={height * p} x2={width} y2={height * p} stroke="currentColor" strokeOpacity="0.05" />
+         ))}
+         {/* Path */}
+         <path d={areaPoints} fill="url(#grad1)" />
+         <polyline points={points} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+         {/* Tooltip triggers */}
+         {data.map((d, i) => (
+           <g key={i} className="group">
+             <circle cx={i * step} cy={height - (d / max) * height} r="6" className="fill-white stroke-blue-500 stroke-2 opacity-0 group-hover:opacity-100 transition-opacity" />
+             <foreignObject x={i * step - 20} y={height - (d / max) * height - 40} width="40" height="30" className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <div className="bg-slate-800 text-white text-xs rounded px-1 py-0.5 text-center shadow-lg">${d}k</div>
+             </foreignObject>
+           </g>
+         ))}
+      </svg>
+    </div>
+  );
+};
+
+const ProjectsChart = () => {
+  const data = [
+    { label: 'Planning', value: 30, color: '#f59e0b' },
+    { label: 'Active', value: 45, color: '#3b82f6' },
+    { label: 'Review', value: 25, color: '#10b981' }
+  ];
+  
+  // Calculate donut segments
+  const total = data.reduce((acc, curr) => acc + curr.value, 0);
+  let cumPercent = 0;
+
+  const getCoordinatesForPercent = (percent: number) => {
+    const x = Math.cos(2 * Math.PI * percent);
+    const y = Math.sin(2 * Math.PI * percent);
+    return [x, y];
+  };
+
+  return (
+    <div className="flex justify-center items-center h-64 gap-8">
+       <div className="w-40 h-40 relative">
+         <svg viewBox="-1 -1 2 2" className="transform -rotate-90 w-full h-full">
+            {data.map((slice, i) => {
+              const startPercent = cumPercent;
+              const slicePercent = slice.value / total;
+              cumPercent += slicePercent;
+              
+              const [startX, startY] = getCoordinatesForPercent(startPercent);
+              const [endX, endY] = getCoordinatesForPercent(cumPercent);
+              const largeArcFlag = slicePercent > 0.5 ? 1 : 0;
+              
+              const pathData = `M ${startX} ${startY} A 1 1 0 ${largeArcFlag} 1 ${endX} ${endY} L 0 0`;
+              
+              return (
+                <path 
+                  key={i} 
+                  d={pathData} 
+                  fill={slice.color} 
+                  className="hover:opacity-90 transition-opacity cursor-pointer stroke-white dark:stroke-slate-900 stroke-[0.02]" 
+                />
+              );
+            })}
+            <circle r="0.6" fill="currentColor" className="text-white dark:text-slate-900" />
+         </svg>
+       </div>
+       <div className="space-y-2">
+         {data.map((d, i) => (
+           <div key={i} className="flex items-center gap-2">
+             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }}></div>
+             <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{d.label}</span>
+             <span className="text-sm font-bold text-slate-900 dark:text-white">{d.value}%</span>
+           </div>
+         ))}
+       </div>
+    </div>
+  );
+};
+
+const TeamChart = () => {
+  const data = [60, 85, 45, 90, 70];
+  const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  
+  return (
+    <div className="w-full h-64 flex items-end justify-between gap-4 pt-8 pb-2">
+       {data.map((h, i) => (
+         <div key={i} className="flex-1 flex flex-col justify-end items-center group relative h-full">
+            <div className="w-full bg-indigo-500 rounded-t-lg opacity-80 group-hover:opacity-100 transition-all relative" style={{ height: `${h}%` }}>
+               <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                 {h}%
+               </div>
+            </div>
+            <span className="text-xs font-medium text-slate-500 mt-2">{labels[i]}</span>
+         </div>
+       ))}
+    </div>
+  );
+};
 
 interface ModuleCardProps {
   title: string;
@@ -116,187 +279,203 @@ const Dashboard = ({ onNavigate }: { onNavigate: (view: ViewState) => void }) =>
 
 // --- CRM Sub-Views ---
 
-const PeopleView = () => {
-  const tabs = ['All', 'Employees', 'Customers', 'Suppliers', 'Contractors', 'Contacts'];
-  const [activeTab, setActiveTab] = useState('All');
+// Generic list item component for consistent look
+const ListItem = ({ title, subtitle, badge, badgeColor, onDelete, onEdit }: any) => (
+  <div className="group flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all">
+    <div className="flex items-center gap-4">
+      <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-500 dark:text-slate-400 text-sm">
+        {title.charAt(0)}
+      </div>
+      <div>
+        <h4 className="font-bold text-slate-900 dark:text-white">{title}</h4>
+        <p className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
+      </div>
+    </div>
+    <div className="flex items-center gap-4">
+      {badge && (
+        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeColor || 'bg-slate-100 text-slate-600'}`}>
+          {badge}
+        </span>
+      )}
+      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button onClick={onEdit} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-blue-500"><Edit2 size={14} /></button>
+        <button onClick={onDelete} className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
+      </div>
+    </div>
+  </div>
+);
+
+const PeopleView = ({ searchQuery, subCategory }: { searchQuery: string, subCategory?: string }) => {
+  const [people, setPeople] = useState([
+    { id: 1, name: 'John Doe', role: 'Customer', company: 'Acme Corp', contact: 'john@acme.com' },
+    { id: 2, name: 'Sarah Smith', role: 'Employee', company: 'Integratd Living', contact: 'sarah@integratd.com' },
+    { id: 3, name: 'Rexel Supply', role: 'Supplier', company: 'Rexel', contact: 'sales@rexel.com' },
+    { id: 4, name: 'Mike Fixit', role: 'Contractor', company: 'Fixit All', contact: 'mike@fixit.com' },
+  ]);
+
+  const filterRole = subCategory === 'All' || !subCategory ? '' : subCategory?.slice(0, -1); // Simple plural to singular
+  
+  const filteredPeople = people.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = !filterRole || p.role.includes(filterRole) || (filterRole === 'Contact' && true); // Fallback
+    return matchesSearch && matchesCategory;
+  });
+
+  const handleAdd = () => {
+    const newPerson = { 
+      id: Date.now(), 
+      name: 'New Person', 
+      role: filterRole || 'Contact', 
+      company: 'Company', 
+      contact: 'email@example.com' 
+    };
+    setPeople([...people, newPerson]);
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">People Directory</h2>
-        <button className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700">
-          <Plus size={18} /> Add New
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'People Directory'}</h2>
+          <p className="text-slate-500 text-sm">Manage your {subCategory?.toLowerCase() || 'contacts'}</p>
+        </div>
+        <button onClick={handleAdd} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all">
+          <Plus size={18} /> Add {filterRole || 'Person'}
         </button>
       </div>
-      
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {tabs.map(tab => (
-          <button 
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab 
-                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' 
-                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400">
-            <tr>
-              <th className="px-6 py-4 font-medium">Name</th>
-              <th className="px-6 py-4 font-medium">Role</th>
-              <th className="px-6 py-4 font-medium">Company</th>
-              <th className="px-6 py-4 font-medium">Contact</th>
-              <th className="px-6 py-4 font-medium text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-slate-700 dark:text-slate-300">
-            {[1, 2, 3].map((_, i) => (
-              <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                <td className="px-6 py-4 font-medium flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold">JD</div>
-                  John Doe
-                </td>
-                <td className="px-6 py-4">Customer</td>
-                <td className="px-6 py-4">Acme Corp</td>
-                <td className="px-6 py-4">john@example.com</td>
-                <td className="px-6 py-4 text-right">
-                  <button className="text-slate-400 hover:text-blue-500"><MoreVertical size={16} /></button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="grid grid-cols-1 gap-3">
+        {filteredPeople.length > 0 ? filteredPeople.map((p) => (
+          <ListItem 
+            key={p.id}
+            title={p.name}
+            subtitle={`${p.company} • ${p.contact}`}
+            badge={p.role}
+            badgeColor="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+            onDelete={() => setPeople(people.filter(x => x.id !== p.id))}
+            onEdit={() => {}}
+          />
+        )) : (
+          <div className="p-12 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-slate-400">
+            No {subCategory?.toLowerCase()} found. Click "Add" to create one.
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-const QuotesView = () => {
-  const tabs = ['Open', 'Expired', 'Sent', 'Supplier Quotes'];
-  const [activeTab, setActiveTab] = useState('Open');
+const QuotesView = ({ searchQuery, subCategory }: { searchQuery: string, subCategory?: string }) => {
+  const [quotes, setQuotes] = useState([
+    { id: 1, title: 'Smart Home Upgrade', client: 'Smith Residence', amount: '$14,250', status: 'Open' },
+    { id: 2, title: 'Lighting Retrofit', client: 'Jones Office', amount: '$5,500', status: 'Sent' },
+    { id: 3, title: 'Cinema Room', client: 'Brown Manor', amount: '$22,000', status: 'Expired' },
+  ]);
+
+  const filterStatus = subCategory === 'Supplier Quotes' ? 'Supplier' : subCategory;
+
+  const filtered = quotes.filter(q => !filterStatus || q.status === filterStatus || (filterStatus === 'Supplier' && false)); // Placeholder for supplier logic
+
+  const handleAdd = () => {
+    setQuotes([...quotes, { id: Date.now(), title: 'New Quote', client: 'Client', amount: '$0.00', status: filterStatus || 'Open' }]);
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Quote Management</h2>
-        <button className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-600 text-white hover:bg-yellow-700">
+        <div>
+           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'All Quotes'}</h2>
+           <p className="text-slate-500 text-sm">Track and manage your quotes</p>
+        </div>
+        <button onClick={handleAdd} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-600 text-white hover:bg-yellow-700 shadow-lg shadow-yellow-600/20 transition-all">
           <Plus size={18} /> Create Quote
         </button>
       </div>
-      
-      <div className="flex gap-2">
-        {tabs.map(tab => (
-          <button 
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-              activeTab === tab 
-                ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-500' 
-                : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all group">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filtered.map((q) => (
+          <div key={q.id} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all group relative">
             <div className="flex justify-between items-start mb-4">
               <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl text-yellow-600 dark:text-yellow-500">
                 <FileText size={20} />
               </div>
-              <span className="px-2 py-1 rounded-full text-xs font-bold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400">
-                Pending
+              <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                q.status === 'Open' ? 'bg-green-100 text-green-700' : 
+                q.status === 'Expired' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+              }`}>
+                {q.status}
               </span>
             </div>
-            <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-1">Smart Home Upgrade</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Client: Smith Residence</p>
+            <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-1">{q.title}</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Client: {q.client}</p>
             <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-700">
-              <span className="font-bold text-slate-900 dark:text-white">$14,250</span>
+              <span className="font-bold text-slate-900 dark:text-white">{q.amount}</span>
               <div className="flex gap-2">
-                 <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><Edit2 size={16} /></button>
-                 <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><Download size={16} /></button>
+                 <button onClick={() => setQuotes(quotes.filter(x => x.id !== q.id))} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
+                 <button className="p-2 text-slate-400 hover:text-blue-500 transition-colors"><Edit2 size={16} /></button>
               </div>
             </div>
           </div>
         ))}
+        {filtered.length === 0 && (
+           <div className="col-span-full p-12 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-slate-400">
+             No quotes found in this category.
+           </div>
+        )}
       </div>
     </div>
   );
 };
 
-const JobsView = () => {
-  const statuses = ['In Progress', 'Upcoming', 'Pending', 'Finished', 'Recurring'];
+const JobsView = ({ subCategory }: { subCategory?: string }) => {
+  const [jobs, setJobs] = useState([
+    { id: 1, title: 'Living Room Automation', status: 'In Progress', due: 'Tomorrow' },
+    { id: 2, title: 'Kitchen Lighting', status: 'Upcoming', due: 'Next Week' },
+  ]);
+
+  const filtered = subCategory ? jobs.filter(j => j.status === subCategory) : jobs;
+
   return (
-    <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Job Board</h2>
-        <button className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'Jobs'}</h2>
+          <p className="text-slate-500 text-sm">Project execution and tracking</p>
+        </div>
+        <button onClick={() => setJobs([...jobs, { id: Date.now(), title: 'New Job', status: subCategory || 'Pending', due: 'TBD' }])} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700">
           <Plus size={18} /> New Job
         </button>
       </div>
-      <div className="flex-1 overflow-x-auto">
-        <div className="flex gap-6 min-w-max h-full pb-4">
-          {statuses.map(status => (
-            <div key={status} className="w-80 bg-slate-50 dark:bg-slate-900/50 rounded-2xl p-4 flex flex-col h-full">
-              <div className="flex justify-between items-center mb-4 px-2">
-                <h3 className="font-bold text-slate-700 dark:text-slate-300">{status}</h3>
-                <span className="bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full text-xs font-bold">2</span>
-              </div>
-              <div className="space-y-3 flex-1 overflow-y-auto pr-2">
-                {[1, 2].map(i => (
-                  <div key={i} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 transition-colors">
-                    <div className="flex gap-2 mb-2">
-                      <span className="px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[10px] font-bold uppercase">Install</span>
-                    </div>
-                    <h4 className="font-bold text-slate-900 dark:text-white text-sm mb-2">Living Room Automation</h4>
-                    <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                      <Clock size={12} /> Due Tomorrow
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+      
+      <div className="grid gap-3">
+        {filtered.map(job => (
+          <ListItem 
+             key={job.id}
+             title={job.title}
+             subtitle={`Due: ${job.due}`}
+             badge={job.status}
+             badgeColor="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+             onDelete={() => setJobs(jobs.filter(j => j.id !== job.id))}
+             onEdit={() => {}}
+          />
+        ))}
+        {filtered.length === 0 && <div className="p-8 text-center text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">No jobs in this status.</div>}
       </div>
     </div>
   );
 };
 
-const CalendarView = () => {
-  const views = ['Daily', 'Weekly', 'Fortnightly', 'Monthly', 'Annually'];
-  const [view, setView] = useState('Monthly');
-
+const CalendarView = ({ subCategory }: { subCategory?: string }) => {
   return (
     <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Schedule</h2>
-          <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-             {views.map(v => (
-               <button 
-                 key={v}
-                 onClick={() => setView(v)}
-                 className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${view === v ? 'bg-white dark:bg-slate-600 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'}`}
-               >
-                 {v}
-               </button>
-             ))}
-          </div>
+        <div>
+           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'Schedule'}</h2>
+           <p className="text-slate-500 text-sm">Timeline and events</p>
         </div>
         <div className="flex items-center gap-3">
           <button className="text-sm text-slate-500 flex items-center gap-2 hover:text-blue-600">
-            <div className="w-2 h-2 rounded-full bg-green-500"></div> Google Calendar Synced
+            <div className="w-2 h-2 rounded-full bg-green-500"></div> Synced
           </button>
           <button className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
             <Plus size={18} /> Add Event
@@ -304,25 +483,15 @@ const CalendarView = () => {
         </div>
       </div>
 
-      <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-6 relative overflow-hidden">
-         {/* Mock Calendar Grid */}
+      {/* Mock Calendar */}
+      <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-6">
          <div className="grid grid-cols-7 gap-px bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden h-full">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
               <div key={day} className="bg-slate-50 dark:bg-slate-800 p-2 text-center text-xs font-bold text-slate-500">{day}</div>
             ))}
             {Array.from({length: 35}).map((_, i) => (
-              <div key={i} className="bg-white dark:bg-slate-900 p-2 min-h-[80px] relative hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+              <div key={i} className="bg-white dark:bg-slate-900 p-2 min-h-[80px] relative hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group">
                 <span className={`text-xs ${i === 14 ? 'bg-blue-600 text-white w-6 h-6 flex items-center justify-center rounded-full' : 'text-slate-400'}`}>{i + 1}</span>
-                {i === 14 && (
-                  <div className="mt-1 p-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[10px] rounded border border-blue-200 dark:border-blue-800 truncate">
-                    Site Visit: 10 AM
-                  </div>
-                )}
-                {i === 16 && (
-                  <div className="mt-1 p-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[10px] rounded border border-green-200 dark:border-green-800 truncate">
-                    Install Due
-                  </div>
-                )}
               </div>
             ))}
          </div>
@@ -331,160 +500,166 @@ const CalendarView = () => {
   );
 };
 
-const MaterialsView = () => {
-  const [mode, setMode] = useState<'Stock' | 'Orders'>('Stock');
-  const [location, setLocation] = useState<'Sydney' | 'Melbourne'>('Sydney');
-
+const MaterialsView = ({ subCategory }: { subCategory?: string }) => {
+  const isOrders = subCategory === 'Orders';
+  
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center">
-        <div className="flex items-center gap-4">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Materials & Inventory</h2>
-          <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-            <button onClick={() => setMode('Stock')} className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${mode === 'Stock' ? 'bg-white dark:bg-slate-600 shadow-sm' : 'text-slate-500'}`}>Stock</button>
-            <button onClick={() => setMode('Orders')} className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${mode === 'Orders' ? 'bg-white dark:bg-slate-600 shadow-sm' : 'text-slate-500'}`}>Orders</button>
-          </div>
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'Inventory'}</h2>
+          <p className="text-slate-500 text-sm">{isOrders ? 'Track supplier orders' : 'Manage stock levels'}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <select 
-            value={location} 
-            onChange={(e) => setLocation(e.target.value as any)}
-            className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm"
-          >
-            <option>Sydney</option>
-            <option>Melbourne</option>
-          </select>
-          <button className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
-            <Plus size={18} /> {mode === 'Stock' ? 'Add Item' : 'New Order'}
-          </button>
-        </div>
+        <button className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
+          <Plus size={18} /> {isOrders ? 'New Order' : 'Add Item'}
+        </button>
       </div>
 
-      {mode === 'Stock' ? (
+      {!isOrders ? (
         <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {[1, 2, 3, 4, 5, 6].map(i => (
+          {[1, 2, 3, 4].map(i => (
             <div key={i} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden group shadow-sm hover:shadow-md transition-all">
               <div className="h-32 bg-slate-100 dark:bg-slate-700 relative flex items-center justify-center">
                 <Package className="text-slate-300 dark:text-slate-600 w-12 h-12" />
-                <div className="absolute top-2 right-2 px-2 py-1 bg-black/50 text-white text-xs rounded backdrop-blur-sm">
-                  Qty: 45
-                </div>
               </div>
               <div className="p-4">
-                <div className="flex justify-between items-start">
-                  <h3 className="font-bold text-slate-900 dark:text-white">Loxone Miniserver</h3>
-                  <span className="text-xs text-slate-400">Ref: LX-001</span>
-                </div>
-                <p className="text-xs text-slate-500 mt-1">Automation Controllers</p>
+                <h3 className="font-bold text-slate-900 dark:text-white">Loxone Miniserver</h3>
                 <div className="mt-4 flex gap-2">
-                  <button className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600">Assign</button>
-                  <button className="flex-1 py-1.5 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-800">Edit</button>
+                   <button className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-700 rounded text-xs font-bold">Edit</button>
+                   <button className="flex-1 py-1.5 text-red-500 rounded text-xs font-bold">Delete</button>
                 </div>
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400">
-              <tr>
-                <th className="px-6 py-4 font-medium">Order ID</th>
-                <th className="px-6 py-4 font-medium">Supplier</th>
-                <th className="px-6 py-4 font-medium">Items</th>
-                <th className="px-6 py-4 font-medium">Status</th>
-                <th className="px-6 py-4 font-medium">Linked To</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-slate-700 dark:text-slate-300">
-              {[1, 2].map(i => (
-                 <tr key={i}>
-                   <td className="px-6 py-4 font-medium">#ORD-2025-{i}0</td>
-                   <td className="px-6 py-4">Rexel Electrical</td>
-                   <td className="px-6 py-4">12 Items</td>
-                   <td className="px-6 py-4"><span className="text-xs font-bold px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full">To Order</span></td>
-                   <td className="px-6 py-4 text-xs text-slate-500">Project: Smith House</td>
-                 </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-3">
+           <ListItem title="Order #1234" subtitle="Rexel • 12 Items" badge="Pending" badgeColor="bg-yellow-100 text-yellow-700" onDelete={() => {}} onEdit={() => {}} />
+           <ListItem title="Order #1235" subtitle="Middy's • 4 Items" badge="Received" badgeColor="bg-green-100 text-green-700" onDelete={() => {}} onEdit={() => {}} />
         </div>
       )}
     </div>
   );
 };
 
-const PaymentsView = () => {
-  const [direction, setDirection] = useState<'In' | 'Out'>('In');
-  const statuses = ['All', 'Upcoming', 'Pending', 'Due', 'Paid', 'Credits', 'Retentions'];
+const PaymentsView = ({ subCategory }: { subCategory?: string }) => {
+  const [direction, setDirection] = useState<'inbound' | 'outbound'>('inbound');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [invoices, setInvoices] = useState([
+    { id: 1, ref: 'INV-2024-001', entity: 'Smith Residence', amount: '$12,500', date: 'Due Nov 25', status: 'Due', dir: 'inbound' },
+    { id: 2, ref: 'INV-2024-002', entity: 'Jones Office', amount: '$4,200', date: 'Paid Oct 12', status: 'Paid', dir: 'inbound' },
+    { id: 3, ref: 'PO-9921', entity: 'Rexel Supply', amount: '$850', date: 'Pending Approval', status: 'Pending', dir: 'outbound' },
+  ]);
+
+  // Subcategory acts as filter status if present (e.g., 'Upcoming', 'Paid')
+  const filterStatus = subCategory && !['To Us', 'To Suppliers', 'Invoices'].includes(subCategory) ? subCategory : null;
+  
+  // Auto-switch direction based on menu selection if possible
+  useEffect(() => {
+    if (subCategory === 'To Us') setDirection('inbound');
+    if (subCategory === 'To Suppliers') setDirection('outbound');
+  }, [subCategory]);
+
+  const filtered = invoices.filter(inv => {
+    const dirMatch = inv.dir === direction;
+    const statusMatch = filterStatus ? inv.status === filterStatus : true;
+    return dirMatch && statusMatch;
+  });
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Payments & Invoicing</h2>
-        <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-           <button onClick={() => setDirection('In')} className={`px-6 py-1.5 text-sm font-bold rounded-md transition-all flex items-center gap-2 ${direction === 'In' ? 'bg-white dark:bg-slate-600 shadow-sm text-green-600 dark:text-green-400' : 'text-slate-500'}`}>
-             <ArrowLeft className="rotate-45" size={16} /> To Us
-           </button>
-           <button onClick={() => setDirection('Out')} className={`px-6 py-1.5 text-sm font-bold rounded-md transition-all flex items-center gap-2 ${direction === 'Out' ? 'bg-white dark:bg-slate-600 shadow-sm text-red-500 dark:text-red-400' : 'text-slate-500'}`}>
-             <ArrowLeft className="-rotate-135" size={16} /> To Suppliers
-           </button>
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'Payments'}</h2>
+          <p className="text-slate-500 text-sm">Financial tracking & Invoicing</p>
         </div>
+        <button onClick={() => setShowAddModal(true)} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
+          <Plus size={18} /> New Invoice
+        </button>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {statuses.map(status => (
-          <button key={status} className="px-4 py-2 rounded-lg text-sm font-medium text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 whitespace-nowrap">
-            {status}
-          </button>
+      {/* Tabs */}
+      <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
+        <button 
+          onClick={() => setDirection('inbound')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${direction === 'inbound' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}
+        >
+          To Us (Inbound)
+        </button>
+        <button 
+          onClick={() => setDirection('outbound')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${direction === 'outbound' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}
+        >
+          To Suppliers (Outbound)
+        </button>
+      </div>
+
+      <div className="space-y-3">
+        {filtered.map(inv => (
+          <ListItem 
+            key={inv.id}
+            title={inv.ref} 
+            subtitle={`${inv.entity} • ${inv.date} • ${inv.amount}`} 
+            badge={inv.status} 
+            badgeColor={inv.status === 'Paid' ? 'bg-green-100 text-green-600' : inv.status === 'Due' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'} 
+            onDelete={() => setInvoices(invoices.filter(i => i.id !== inv.id))} 
+            onEdit={() => {}} 
+          />
         ))}
+        {filtered.length === 0 && (
+          <div className="p-12 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-slate-400">
+             No {direction} payments found{filterStatus ? ` with status ${filterStatus}` : ''}.
+          </div>
+        )}
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-          <h3 className="font-bold text-lg text-slate-800 dark:text-white">
-             {direction === 'In' ? 'Invoices Sent' : 'Bills to Pay'}
-          </h3>
-          <button className="text-sm text-blue-600 dark:text-blue-400 font-medium flex items-center gap-2">
-            <Download size={16} /> Export PDF Report
-          </button>
+      {/* Add Invoice Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 w-[500px] shadow-2xl">
+            <h3 className="text-xl font-bold mb-4">Create New Invoice</h3>
+            <div className="space-y-4">
+               <input placeholder="Invoice Reference (e.g. INV-001)" className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none" />
+               <div className="grid grid-cols-2 gap-4">
+                 <input placeholder="Amount" type="number" className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none" />
+                 <input placeholder="Due Date" type="date" className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none" />
+               </div>
+               
+               {/* Cross Linking */}
+               <div>
+                 <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Link To</label>
+                 <select className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none text-slate-600 dark:text-slate-300">
+                   <option>Select Project...</option>
+                   <option>Smart Home Upgrade</option>
+                   <option>Lighting Retrofit</option>
+                 </select>
+               </div>
+               <div>
+                 <select className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none text-slate-600 dark:text-slate-300">
+                   <option>Select Quote...</option>
+                   <option>Quote #1001</option>
+                   <option>Quote #1002</option>
+                 </select>
+               </div>
+
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>
+              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">Create Invoice</button>
+            </div>
+          </div>
         </div>
-        <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400">
-            <tr>
-              <th className="px-6 py-4 font-medium">Invoice #</th>
-              <th className="px-6 py-4 font-medium">Entity</th>
-              <th className="px-6 py-4 font-medium">Date</th>
-              <th className="px-6 py-4 font-medium">Amount</th>
-              <th className="px-6 py-4 font-medium">Status</th>
-              <th className="px-6 py-4 font-medium text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-slate-700 dark:text-slate-300">
-            {[1, 2, 3].map(i => (
-              <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                <td className="px-6 py-4 font-medium">INV-2025-00{i}</td>
-                <td className="px-6 py-4">{direction === 'In' ? 'Client: John Doe' : 'Supplier: Rexel'}</td>
-                <td className="px-6 py-4">Nov 25, 2025</td>
-                <td className="px-6 py-4 font-bold">$2,450.00</td>
-                <td className="px-6 py-4"><span className="px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-xs font-bold rounded-full">Due</span></td>
-                <td className="px-6 py-4 text-right">
-                  <button className="text-blue-600 hover:underline text-xs">PDF</button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      )}
     </div>
   );
 };
 
-const CRMDashboard = () => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+const CRMDashboard = ({ searchQuery }: { searchQuery: string }) => {
   const [activeView, setActiveView] = useState<string>('overview');
+  const [subCategory, setSubCategory] = useState<string | undefined>(undefined);
+  const [analyticsType, setAnalyticsType] = useState<string | null>(null);
 
-  // Detailed Navigation Structure
+  // Navigation Structure
   const navItems = [
     { 
       id: 'people', 
@@ -513,7 +688,7 @@ const CRMDashboard = () => {
     { 
       id: 'schedules', 
       label: 'Schedules', 
-      icon: Calendar, 
+      icon: CalendarIcon, 
       sub: ['Calendar', 'Timeline', 'Shifts'] 
     },
     { 
@@ -526,53 +701,130 @@ const CRMDashboard = () => {
       id: 'payments', 
       label: 'Payments', 
       icon: CreditCard, 
-      sub: ['To Us', 'To Suppliers', 'Invoices'] 
+      sub: ['To Us', 'To Suppliers', 'Invoices', 'Upcoming', 'Pending', 'Due', 'Paid', 'Credits', 'Retentions'] 
     },
   ];
 
+  const handleNavClick = (viewId: string, sub?: string) => {
+    setActiveView(viewId);
+    setSubCategory(sub);
+    setAnalyticsType(null); // Reset analytics when navigating
+  };
+
   const renderContent = () => {
+    // If Analytics Mode is active (clicked from dashboard)
+    if (analyticsType) {
+      return (
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
+           <button onClick={() => setAnalyticsType(null)} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:hover:text-white mb-4 transition-colors">
+             <ArrowLeft size={18} /> Back to Overview
+           </button>
+           <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-sm border border-slate-100 dark:border-slate-700">
+             <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">{analyticsType} Analytics</h2>
+                  <p className="text-slate-500">Detailed performance metrics.</p>
+                </div>
+                <select className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
+                  <option>Last 30 Days</option>
+                  <option>Last Quarter</option>
+                  <option>Year to Date</option>
+                </select>
+             </div>
+             
+             {/* Render specific chart based on type */}
+             {analyticsType === 'Revenue' && <RevenueChart />}
+             {analyticsType === 'Projects' && <ProjectsChart />}
+             {analyticsType === 'Quotes' && <div className="h-64 flex items-center justify-center text-slate-400">Quote Pipeline Chart Component</div>}
+             {analyticsType === 'Team' && <TeamChart />}
+           </div>
+        </div>
+      );
+    }
+
     switch(activeView) {
-      case 'people': return <PeopleView />;
-      case 'quotes': return <QuotesView />;
-      case 'jobs': return <JobsView />;
-      case 'schedules': return <CalendarView />;
-      case 'stock': return <MaterialsView />;
-      case 'payments': return <PaymentsView />;
+      case 'people': return <PeopleView searchQuery={searchQuery} subCategory={subCategory} />;
+      case 'quotes': return <QuotesView searchQuery={searchQuery} subCategory={subCategory} />;
+      case 'jobs': return <JobsView subCategory={subCategory} />;
+      case 'schedules': return <CalendarView subCategory={subCategory} />;
+      case 'stock': return <MaterialsView subCategory={subCategory} />;
+      case 'payments': return <PaymentsView subCategory={subCategory} />;
       default: 
         return (
           <div className="space-y-8 animate-in fade-in duration-500">
              <div className="flex items-end justify-between">
               <div>
-                <h1 className="text-4xl font-bold text-slate-900 dark:text-white tracking-tight mb-2">Dashboard</h1>
-                <p className="text-slate-500 dark:text-slate-400">Welcome back, here's what's happening today.</p>
+                <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight mb-1">Overview</h1>
+                <p className="text-slate-500 dark:text-slate-400 text-sm">Welcome back, here's what's happening today.</p>
               </div>
-              <button className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm font-medium shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-slate-700 dark:text-slate-300">
-                Customize View
-              </button>
             </div>
 
-            {/* Stats Widgets */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-               {[
-                 { label: 'Total Revenue', value: '$128,450', change: '+12.5%', trend: 'up' },
-                 { label: 'Active Projects', value: '14', change: '+2', trend: 'up' },
-                 { label: 'Pending Quotes', value: '8', change: '-1', trend: 'down' },
-                 { label: 'Team Availability', value: '85%', change: 'Normal', trend: 'neutral' },
-               ].map((stat, i) => (
-                 <div key={i} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
-                   <div className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-2">{stat.label}</div>
-                   <div className="flex items-baseline gap-3">
-                     <div className="text-3xl font-bold text-slate-900 dark:text-white">{stat.value}</div>
-                     <div className={`text-sm font-medium px-2 py-0.5 rounded-full ${
-                       stat.trend === 'up' ? 'bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400' :
-                       stat.trend === 'down' ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400' :
-                       'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
-                     }`}>
-                       {stat.change}
-                     </div>
-                   </div>
+            {/* Minimalist Stat Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+               <StatCard 
+                  title="Revenue" 
+                  value="$128.5k" 
+                  trend="+12.5%" 
+                  icon={DollarSign} 
+                  onClick={() => setAnalyticsType('Revenue')}
+               />
+               <StatCard 
+                  title="Active Projects" 
+                  value="14" 
+                  trend="+2" 
+                  icon={Folder} 
+                  onClick={() => setAnalyticsType('Projects')}
+               />
+               <StatCard 
+                  title="Pending Quotes" 
+                  value="8" 
+                  icon={FileText} 
+                  onClick={() => setAnalyticsType('Quotes')}
+               />
+               <StatCard 
+                  title="Availability" 
+                  value="85%" 
+                  trend="-5%" 
+                  icon={Clock} 
+                  onClick={() => setAnalyticsType('Team')}
+               />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+               {/* Recent Activity Section */}
+               <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-100 dark:border-slate-700">
+                  <h3 className="font-bold text-lg mb-4">Recent Activity</h3>
+                  <div className="space-y-4">
+                     {[1,2,3].map(i => (
+                       <div key={i} className="flex gap-4 items-start border-b border-slate-50 dark:border-slate-800 pb-3 last:border-0">
+                          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 mt-1 text-blue-500">
+                             <Activity size={14} />
+                          </div>
+                          <div>
+                             <p className="text-sm font-medium text-slate-800 dark:text-white">New Quote Approved</p>
+                             <p className="text-xs text-slate-500">Smith Residence • 2 hours ago</p>
+                          </div>
+                       </div>
+                     ))}
+                  </div>
+               </div>
+               {/* Quick Actions */}
+               <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-8 border border-slate-700 flex flex-col justify-between">
+                 <div>
+                   <h3 className="font-bold text-lg mb-1">Quick Actions</h3>
+                   <p className="text-slate-400 text-sm">Shortcuts for common tasks</p>
                  </div>
-               ))}
+                 <div className="grid grid-cols-2 gap-4 mt-6">
+                    <button className="p-4 bg-white/10 hover:bg-white/20 rounded-xl text-left transition-colors">
+                       <Plus size={20} className="mb-2" />
+                       <span className="text-sm font-bold">New Quote</span>
+                    </button>
+                    <button className="p-4 bg-white/10 hover:bg-white/20 rounded-xl text-left transition-colors">
+                       <Users size={20} className="mb-2" />
+                       <span className="text-sm font-bold">Add Contact</span>
+                    </button>
+                 </div>
+               </div>
             </div>
           </div>
         );
@@ -582,60 +834,57 @@ const CRMDashboard = () => {
   return (
     <div className="flex h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
       
-      {/* Sidebar */}
+      {/* Sidebar - Compact & Fixed */}
       <div 
         className={`
-          ${isSidebarOpen ? 'w-72' : 'w-0'} 
-          bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 
-          flex flex-col transition-all duration-300 ease-in-out relative shrink-0
-          ${isSidebarOpen ? 'z-50 overflow-visible' : 'overflow-hidden'} 
+          w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 
+          flex flex-col relative shrink-0 z-50
         `}
+        style={{ overflow: 'visible' }}
       >
-        {/* Toggle Button - Positioned on the RIGHT side of the sidebar header */}
-        <div className="absolute top-4 -right-4 translate-x-full z-[60]">
-          <button 
-             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-             className="p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
-             title={isSidebarOpen ? "Collapse Menu" : "Expand Menu"}
-          >
-             {isSidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeftOpen size={20} />}
-          </button>
-        </div>
-
-        <div className="p-6 pb-4 mt-2">
-          <h2 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-6">Main Menu</h2>
-          <div className="space-y-1">
+        <div className="p-4 pb-0 flex-1 flex flex-col">
+          <h2 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 pl-3">Main Menu</h2>
+          <div className="space-y-0.5">
             <button 
-              onClick={() => setActiveView('overview')}
-              className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-200 border border-transparent ${activeView === 'overview' ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold' : ''}`}
+              onClick={() => handleNavClick('overview')}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-200 ${activeView === 'overview' ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold' : ''}`}
             >
                <div className="flex items-center gap-3">
-                 <LayoutDashboard className="w-5 h-5" />
-                 <span className="font-medium">Overview</span>
+                 <LayoutDashboard className="w-4 h-4" />
+                 <span className="text-sm">Overview</span>
                </div>
             </button>
 
             {navItems.map((item) => (
               <div key={item.id} className="group relative">
                 <button 
-                  onClick={() => setActiveView(item.id)}
-                  className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-200 border border-transparent ${activeView === item.id ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold' : ''}`}
+                  onClick={() => handleNavClick(item.id)}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-200 ${activeView === item.id ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold' : ''}`}
                 >
                   <div className="flex items-center gap-3">
-                    <item.icon className="w-5 h-5 opacity-70 group-hover:opacity-100" />
-                    <span className="font-medium">{item.label}</span>
+                    <item.icon className="w-4 h-4 opacity-70 group-hover:opacity-100" />
+                    <span className="text-sm">{item.label}</span>
                   </div>
-                  <ChevronRight className="w-4 h-4 opacity-0 group-hover:opacity-50 -translate-x-2 group-hover:translate-x-0 transition-all" />
+                  <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-50 -translate-x-2 group-hover:translate-x-0 transition-all" />
                 </button>
                 
-                {/* Hover Submenu - Fixed positioning using high z-index and absolute placement outside sidebar */}
-                <div className="absolute left-full top-0 ml-2 w-56 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 p-2 hidden group-hover:block animate-in fade-in slide-in-from-left-2 duration-200 z-[100]">
-                   <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-800 mb-1">{item.label}</div>
+                {/* Flyout Menu with Invisible Bridge for Stability */}
+                <div className="absolute left-full top-0 ml-2 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1 hidden group-hover:block animate-in fade-in slide-in-from-left-1 duration-200 z-[60]">
+                   {/* Invisible bridge to prevent closing when moving mouse */}
+                   <div className="absolute -left-3 top-0 w-4 h-full bg-transparent"></div>
+                   
+                   <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-800 mb-1">{item.label}</div>
                    {item.sub.map((subItem) => (
-                     <div key={subItem} className="px-3 py-2 text-sm text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer transition-colors flex items-center justify-between group/sub">
+                     <button
+                       key={subItem}
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         handleNavClick(item.id, subItem);
+                       }}
+                       className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-between"
+                     >
                        {subItem}
-                       <ExternalLink size={12} className="opacity-0 group-hover/sub:opacity-50" />
-                     </div>
+                     </button>
                    ))}
                 </div>
               </div>
@@ -643,30 +892,17 @@ const CRMDashboard = () => {
           </div>
         </div>
         
-        <div className="mt-auto p-6 border-t border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-             <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-md">
-               JD
-             </div>
-             <div>
-               <div className="text-sm font-bold text-slate-900 dark:text-white">John Doe</div>
-               <div className="text-xs text-slate-400">Admin Access</div>
+        {/* Compact User Profile */}
+        <div className="p-4 border-t border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer">
+             <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold">JD</div>
+             <div className="overflow-hidden">
+               <div className="text-xs font-bold text-slate-900 dark:text-white truncate">John Doe</div>
+               <div className="text-[10px] text-slate-400 truncate">Admin</div>
              </div>
           </div>
         </div>
       </div>
-
-      {/* Floating Toggle Button (Visible when sidebar is closed) */}
-      {!isSidebarOpen && (
-        <div className="absolute top-4 left-4 z-30">
-          <button 
-            onClick={() => setIsSidebarOpen(true)}
-            className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
-          >
-            <PanelLeftOpen size={20} />
-          </button>
-        </div>
-      )}
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto p-8 scrollbar-thin">
@@ -678,14 +914,181 @@ const CRMDashboard = () => {
   );
 };
 
+const CanvasEditor = ({ project, onClose }: { project: string, onClose: () => void }) => {
+  const [items, setItems] = useState<CanvasItem[]>([]);
+  const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const canvasRef = useRef<HTMLDivElement>(null);
+
+  const symbols = [
+    { id: 'light', label: 'Light', icon: Lightbulb, cost: 120, color: 'bg-yellow-500' },
+    { id: 'sensor', label: 'Sensor', icon: Zap, cost: 180, color: 'bg-blue-500' },
+    { id: 'shade', label: 'Shade', icon: Blinds, cost: 450, color: 'bg-orange-500' },
+    { id: 'speaker', label: 'Speaker', icon: Speaker, cost: 250, color: 'bg-purple-500' },
+  ];
+
+  const handleDrop = (e: React.DragEvent, type: string) => {
+    e.preventDefault();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (rect) {
+      const x = e.clientX - rect.left - 24; // Center offset
+      const y = e.clientY - rect.top - 24;
+      const symbol = symbols.find(s => s.id === type);
+      setItems([...items, { 
+        id: Date.now().toString(), 
+        type: type as any, 
+        x, 
+        y, 
+        label: symbol?.label || 'Item', 
+        cost: symbol?.cost || 0 
+      }]);
+    }
+  };
+
+  const handleDragStart = (e: React.MouseEvent, id: string) => {
+    setDraggedItem(id);
+    const item = items.find(i => i.id === id);
+    if (item) {
+      setOffset({ x: e.clientX - item.x, y: e.clientY - item.y });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (draggedItem) {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (rect) {
+         const x = e.clientX - rect.left - (offset.x - rect.left) + rect.left; // Simplified relative math
+         // Actually, simplest is:
+         const newX = e.clientX - offset.x;
+         const newY = e.clientY - offset.y;
+
+         setItems(items.map(i => i.id === draggedItem ? { ...i, x: e.clientX - offset.x, y: e.clientY - offset.y } : i));
+      }
+    }
+  };
+
+  // Simplified drag logic for this demo
+  const onCanvasMouseMove = (e: React.MouseEvent) => {
+    if (draggedItem && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      setItems(prev => prev.map(item => {
+        if (item.id === draggedItem) {
+           return {
+             ...item,
+             x: e.clientX - rect.left - 20, // roughly center
+             y: e.clientY - rect.top - 20
+           };
+        }
+        return item;
+      }));
+    }
+  };
+
+  const totalCost = items.reduce((sum, item) => sum + item.cost, 0);
+
+  return (
+    <div className="fixed inset-0 bg-slate-50 dark:bg-slate-950 z-[60] flex flex-col">
+      <div className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6">
+        <div className="flex items-center gap-4">
+           <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><ArrowLeft size={20} /></button>
+           <h2 className="font-bold text-lg">{project} - Canvas Editor</h2>
+        </div>
+        <div className="flex items-center gap-4">
+           <div className="text-right">
+             <div className="text-xs text-slate-500">Estimated Cost</div>
+             <div className="font-bold text-xl text-green-600">${totalCost.toLocaleString()}</div>
+           </div>
+           <button className="btn-primary bg-green-600 text-white px-4 py-2 rounded-lg">Save & Quote</button>
+        </div>
+      </div>
+      
+      <div className="flex-1 flex overflow-hidden">
+        {/* Toolbox */}
+        <div className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col gap-4">
+           <h3 className="font-bold text-sm text-slate-500 uppercase">Component Library</h3>
+           {symbols.map(sym => (
+             <div 
+               key={sym.id}
+               draggable
+               onDragStart={(e) => e.dataTransfer.setData('type', sym.id)}
+               className="p-3 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center gap-3 cursor-grab hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+             >
+               <div className={`p-2 rounded-lg text-white ${sym.color}`}><sym.icon size={16} /></div>
+               <div>
+                 <div className="font-bold text-sm">{sym.label}</div>
+                 <div className="text-xs text-slate-400">${sym.cost}</div>
+               </div>
+             </div>
+           ))}
+           <div className="mt-auto p-4 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs text-slate-500">
+             Drag symbols onto the canvas to place them.
+           </div>
+        </div>
+
+        {/* Canvas */}
+        <div 
+          ref={canvasRef}
+          className="flex-1 bg-slate-100 dark:bg-slate-950 relative overflow-hidden cursor-crosshair"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => handleDrop(e, e.dataTransfer.getData('type'))}
+          onMouseMove={onCanvasMouseMove}
+          onMouseUp={() => setDraggedItem(null)}
+        >
+           {/* Grid Background */}
+           <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+           
+           {items.map(item => (
+             <div
+               key={item.id}
+               style={{ left: item.x, top: item.y }}
+               className="absolute p-2 bg-white dark:bg-slate-800 rounded-full shadow-lg cursor-move group active:scale-110 transition-transform z-10"
+               onMouseDown={() => setDraggedItem(item.id)}
+             >
+               <div className="relative">
+                 <Zap size={20} className="text-slate-700 dark:text-white" />
+                 <button 
+                    onClick={(e) => { e.stopPropagation(); setItems(items.filter(i => i.id !== item.id)); }}
+                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                 >
+                   <X size={8} />
+                 </button>
+               </div>
+             </div>
+           ))}
+
+           {items.length === 0 && (
+             <div className="absolute inset-0 flex items-center justify-center text-slate-400 pointer-events-none">
+               <p>Drop floorplan here or start placing symbols</p>
+             </div>
+           )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const QuoteAutomation = () => {
   const [projectName, setProjectName] = useState('');
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [showCanvas, setShowCanvas] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const toggleType = (id: string) => {
     setSelectedTypes(prev => 
       prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
     );
+  };
+
+  const handleAnalysis = (mode: 'ai' | 'manual') => {
+    if (mode === 'ai') {
+      setIsAnalyzing(true);
+      setTimeout(() => {
+        setIsAnalyzing(false);
+        setShowCanvas(true);
+      }, 2000);
+    } else {
+      setShowCanvas(true);
+    }
   };
 
   const automationTypes = [
@@ -695,6 +1098,10 @@ const QuoteAutomation = () => {
     { id: 'climate', label: 'Climate Control', icon: Thermometer },
     { id: 'audio', label: 'Audio System', icon: Speaker },
   ];
+
+  if (showCanvas) {
+    return <CanvasEditor project={projectName || 'Untitled Project'} onClose={() => setShowCanvas(false)} />;
+  }
 
   return (
     <div className="max-w-5xl mx-auto p-6 animate-in slide-in-from-bottom-4 duration-500">
@@ -760,21 +1167,31 @@ const QuoteAutomation = () => {
                 })}
               </div>
             </div>
-
-            <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Pricing Tier</label>
-              <select className="w-full px-4 py-3.5 rounded-xl border border-slate-200 dark:border-slate-600 focus:border-green-500 focus:ring-4 focus:ring-green-500/10 outline-none bg-slate-50 dark:bg-slate-900 dark:text-white appearance-none">
-                <option>Basic - Standard Components</option>
-                <option>Premium - Advanced Components</option>
-                <option>Luxury - High-end Components</option>
-              </select>
-            </div>
           </div>
         </div>
-        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end border-t border-slate-100 dark:border-slate-700">
-          <button className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold text-lg hover:bg-green-700 hover:-translate-y-0.5 transition-all shadow-lg shadow-green-600/20 flex items-center gap-2">
-            <Zap className="w-5 h-5 fill-current" />
-            Generate Quote
+        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-4 border-t border-slate-100 dark:border-slate-700">
+          <button 
+             onClick={() => handleAnalysis('manual')}
+             className="px-8 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-white rounded-xl font-bold text-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
+          >
+            Analysis
+          </button>
+          <button 
+             onClick={() => handleAnalysis('ai')}
+             disabled={isAnalyzing}
+             className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold text-lg hover:bg-green-700 hover:-translate-y-0.5 transition-all shadow-lg shadow-green-600/20 flex items-center gap-2 min-w-[180px] justify-center"
+          >
+            {isAnalyzing ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                Reasoning...
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-5 h-5 fill-current" />
+                AI Analysis
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -782,104 +1199,251 @@ const QuoteAutomation = () => {
   );
 };
 
-const AdminPanel = () => (
-  <div className="flex h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-950 animate-in fade-in">
-    {/* Sidebar */}
-    <div className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col">
-      <div className="p-6">
-        <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-          <Users className="w-5 h-5 text-green-600" />
-          Admin Panel
-        </h2>
-      </div>
-      <nav className="flex-1 px-4 space-y-1">
-        <button className="w-full flex items-center gap-3 px-4 py-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-xl font-medium transition-colors">
-          <Users className="w-5 h-5" />
-          User Management
-        </button>
-        <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-medium transition-colors">
-          <Lock className="w-5 h-5" />
-          Permissions
-        </button>
-        <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-medium transition-colors">
-          <ClipboardList className="w-5 h-5" />
-          Activity Log
-        </button>
-      </nav>
-    </div>
+const AdminPanel = () => {
+  const [users, setUsers] = useState([
+    { id: 1, name: 'Admin', role: 'admin', status: 'Active', lastLogin: '21/11/2025', display: 'System Administrator' }
+  ]);
+  const [showModal, setShowModal] = useState(false);
+  const [newUser, setNewUser] = useState({ 
+    name: '', 
+    display: '', 
+    code: '', 
+    role: 'Viewer',
+    permissions: [] as string[]
+  });
 
-    {/* Content */}
-    <div className="flex-1 p-8 overflow-y-auto">
-      <div className="max-w-6xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">User Management</h1>
-          <p className="text-slate-500 dark:text-slate-400">Create and manage user accounts with role-based permissions</p>
+  const permissionList = [
+    'Admin Panel', 'AI Mapping', 'Board Builder', 'Canvas Editor', 'CRM Dashboard', 
+    'Electrical CAD', 'Operations Board', 'AI Learning', 'Electrical Mapping', 
+    'Quote Automation', 'Simpro Integration'
+  ];
+
+  const handleDelete = (id: number) => {
+    setUsers(users.filter(u => u.id !== id));
+  };
+
+  const handleAddUser = () => {
+    if (newUser.name) {
+      setUsers([...users, {
+        id: Date.now(),
+        name: newUser.name,
+        display: newUser.display || 'New User',
+        role: newUser.role.toLowerCase(),
+        status: 'Active',
+        lastLogin: 'Never'
+      }]);
+      setShowModal(false);
+      setNewUser({ name: '', display: '', code: '', role: 'Viewer', permissions: [] });
+    }
+  };
+
+  const togglePermission = (perm: string) => {
+    if (newUser.permissions.includes(perm)) {
+      setNewUser({ ...newUser, permissions: newUser.permissions.filter(p => p !== perm) });
+    } else {
+      setNewUser({ ...newUser, permissions: [...newUser.permissions, perm] });
+    }
+  };
+
+  return (
+    <div className="flex h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-950 animate-in fade-in">
+      {/* Sidebar */}
+      <div className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col">
+        <div className="p-6">
+          <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+            <Users className="w-5 h-5 text-green-600" />
+            Admin Panel
+          </h2>
         </div>
+        <nav className="flex-1 px-4 space-y-1">
+          <button className="w-full flex items-center gap-3 px-4 py-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-xl font-medium transition-colors">
+            <Users className="w-5 h-5" />
+            User Management
+          </button>
+          <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-medium transition-colors">
+            <Lock className="w-5 h-5" />
+            Permissions
+          </button>
+          <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-medium transition-colors">
+            <ClipboardList className="w-5 h-5" />
+            Activity Log
+          </button>
+        </nav>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {[
-            { label: 'Total Users', value: '1' },
-            { label: 'Active Users', value: '1' },
-            { label: 'Administrators', value: '1' }
-          ].map((stat, i) => (
-            <div key={i} className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-              <div className="text-4xl font-bold text-slate-900 dark:text-white mb-2">{stat.value}</div>
-              <div className="text-slate-500 dark:text-slate-400 font-medium">{stat.label}</div>
+      {/* Content */}
+      <div className="flex-1 p-8 overflow-y-auto relative">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">User Management</h1>
+            <p className="text-slate-500 dark:text-slate-400">Create and manage user accounts with role-based permissions</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {[
+              { label: 'Total Users', value: users.length },
+              { label: 'Active Users', value: users.filter(u => u.status === 'Active').length },
+              { label: 'Administrators', value: users.filter(u => u.role === 'admin').length }
+            ].map((stat, i) => (
+              <div key={i} className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                <div className="text-4xl font-bold text-slate-900 dark:text-white mb-2">{stat.value}</div>
+                <div className="text-slate-500 dark:text-slate-400 font-medium">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-wrap gap-4 justify-between items-center">
+              <h3 className="font-bold text-lg text-slate-800 dark:text-white">All Users</h3>
+              <button 
+                 onClick={() => setShowModal(true)}
+                 className="px-5 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Create User
+              </button>
             </div>
-          ))}
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-100 dark:border-slate-700">
+                    <th className="px-6 py-4">Name</th>
+                    <th className="px-6 py-4">Display Name</th>
+                    <th className="px-6 py-4">Role</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4">Last Login</th>
+                    <th className="px-6 py-4">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                  {users.map((u) => (
+                    <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                      <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">{u.name}</td>
+                      <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{u.display}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
+                          {u.role}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded-full text-xs font-bold">{u.status}</span>
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{u.lastLogin}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex gap-2">
+                          <button className="p-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-slate-600 dark:text-slate-300 transition-colors">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button 
+                             onClick={() => handleDelete(u.id)}
+                             className="p-1.5 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg text-red-500 dark:text-red-400 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
-          <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-wrap gap-4 justify-between items-center">
-            <h3 className="font-bold text-lg text-slate-800 dark:text-white">All Users</h3>
-            <button className="px-5 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Create User
-            </button>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-100 dark:border-slate-700">
-                  <th className="px-6 py-4">Name</th>
-                  <th className="px-6 py-4">Display Name</th>
-                  <th className="px-6 py-4">Role</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Last Login</th>
-                  <th className="px-6 py-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                  <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">Admin</td>
-                  <td className="px-6 py-4 text-slate-600 dark:text-slate-300">System Administrator</td>
-                  <td className="px-6 py-4">
-                    <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 px-2 py-1 rounded-full text-xs font-bold">admin</span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded-full text-xs font-bold">Active</span>
-                  </td>
-                  <td className="px-6 py-4 text-slate-600 dark:text-slate-400">21/11/2025</td>
-                  <td className="px-6 py-4">
-                    <div className="flex gap-2">
-                      <button className="p-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-slate-600 dark:text-slate-300 transition-colors">
-                        <Edit2 className="w-4 h-4" />
+        {/* Add User Modal */}
+        {showModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 w-[600px] shadow-2xl max-h-[90vh] overflow-y-auto">
+              <h3 className="text-2xl font-bold mb-6 dark:text-white">Add New User</h3>
+              
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Name *</label>
+                    <input 
+                      placeholder="e.g., John, Sarah"
+                      value={newUser.name}
+                      onChange={e => setNewUser({...newUser, name: e.target.value})}
+                      className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none dark:text-white"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">This is what the user enters to login</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Display Name *</label>
+                    <input 
+                      placeholder="e.g., John Smith"
+                      value={newUser.display}
+                      onChange={e => setNewUser({...newUser, display: e.target.value})}
+                      className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none dark:text-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Access Code *</label>
+                  <input 
+                    placeholder="4-6 digit code"
+                    value={newUser.code}
+                    onChange={e => setNewUser({...newUser, code: e.target.value})}
+                    className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none dark:text-white"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">Simple numeric code (e.g., 1234, 5678)</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Role *</label>
+                  <select 
+                    value={newUser.role}
+                    onChange={e => setNewUser({...newUser, role: e.target.value})}
+                    className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none dark:text-white"
+                  >
+                    <option>Viewer</option>
+                    <option>Editor</option>
+                    <option>Manager</option>
+                    <option>Admin</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">Permissions</label>
+                  <p className="text-xs text-slate-400 mb-3">Select role above to auto-fill permissions, or customize individually</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {permissionList.map(perm => (
+                      <button 
+                        key={perm}
+                        onClick={() => togglePermission(perm)}
+                        className={`flex items-center gap-3 p-3 rounded-lg border text-left transition-all ${
+                          newUser.permissions.includes(perm)
+                            ? 'bg-green-50 dark:bg-green-900/20 border-green-500 text-green-800 dark:text-green-200'
+                            : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded border flex items-center justify-center ${
+                           newUser.permissions.includes(perm) ? 'bg-green-500 border-green-500' : 'border-slate-300 dark:border-slate-500'
+                        }`}>
+                          {newUser.permissions.includes(perm) && <CheckSquare className="w-3.5 h-3.5 text-white" />}
+                        </div>
+                        <span className="text-sm font-medium">{perm}</span>
                       </button>
-                      <button className="p-1.5 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg text-red-500 dark:text-red-400 transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 mt-8 pt-4 border-t border-slate-100 dark:border-slate-700">
+                <button onClick={() => setShowModal(false)} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancel</button>
+                <button onClick={handleAddUser} className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-600/20 transition-all">
+                   + Create User
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 // --- Main App Component ---
 
@@ -888,6 +1452,7 @@ export default function App() {
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [isAIMinimized, setIsAIMinimized] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (darkMode) {
@@ -899,7 +1464,7 @@ export default function App() {
 
   const renderView = () => {
     switch(currentView) {
-      case 'crm': return <CRMDashboard />;
+      case 'crm': return <CRMDashboard searchQuery={searchQuery} />;
       case 'quotes': return <QuoteAutomation />;
       case 'admin': return <AdminPanel />;
       case 'dashboard': return <Dashboard onNavigate={setCurrentView} />;
@@ -943,9 +1508,16 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-4">
-          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-900/30 rounded-full">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-xs font-bold text-green-700 dark:text-green-400 tracking-wide uppercase">System Online</span>
+          {/* Search */}
+          <div className="relative hidden md:block">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+            <input 
+               type="text" 
+               placeholder="Search..." 
+               value={searchQuery}
+               onChange={(e) => setSearchQuery(e.target.value)}
+               className="pl-9 pr-4 py-1.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-green-500/50 outline-none transition-all w-64"
+            />
           </div>
           
           <button 
@@ -958,9 +1530,6 @@ export default function App() {
 
           <div className="w-px h-8 bg-slate-100 dark:bg-slate-800 mx-2"></div>
           
-          <button className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg transition-colors">
-            <Search size={20} />
-          </button>
           <button className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg transition-colors">
             <LogOut size={20} />
           </button>
@@ -980,14 +1549,14 @@ export default function App() {
         isMinimized={isAIMinimized}
       />
 
-      {/* Floating AI Button (When closed) */}
+      {/* Floating AI Button (When closed) - ICON ONLY */}
       {!isAIOpen && !isAIMinimized && (
         <button 
           onClick={() => { setIsAIOpen(true); setIsAIMinimized(false); }}
-          className="fixed bottom-8 right-8 px-6 py-3.5 bg-gradient-to-r from-green-700 to-green-800 text-white rounded-full shadow-xl shadow-green-900/30 flex items-center gap-2.5 font-bold transition-all hover:scale-105 hover:from-green-600 hover:to-green-700 z-50 ring-4 ring-white/20 backdrop-blur-sm"
+          className="fixed bottom-8 right-8 p-4 bg-gradient-to-r from-green-700 to-green-800 text-white rounded-full shadow-xl shadow-green-900/30 flex items-center justify-center transition-all hover:scale-110 hover:from-green-600 hover:to-green-700 z-50 ring-4 ring-white/20 backdrop-blur-sm"
+          title="Open ALFRED AI"
         >
-          <Brain size={20} className="fill-current" />
-          ALFRED
+          <Brain size={24} className="fill-current" />
         </button>
       )}
     </div>

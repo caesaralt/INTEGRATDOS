@@ -33,6 +33,15 @@ export interface Quote {
   date: string;
 }
 
+export interface CanvasItem {
+  id: string;
+  type: 'lighting' | 'shading' | 'security' | 'climate' | 'audio';
+  x: number;
+  y: number;
+  label: string;
+  cost: number;
+}
+
 export interface CRMData {
   clients: number;
   activeProjects: number;
