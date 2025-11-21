@@ -16,7 +16,12 @@ import {
   Users, 
   ClipboardList,
   Database,
-  Import
+  Import,
+  Brain,
+  Play,
+  Pause,
+  ImageIcon,
+  File
 } from 'lucide-react';
 import { generateChatResponse } from '../services/geminiService';
 import { ChatMessage } from '../types';
@@ -42,13 +47,16 @@ const MODULES = [
 const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, isMinimized }) => {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'model', text: "Hello! I'm Albert, your Integratd Living assistant. I can help you manage your projects, quotes, and automation designs. Import a module context to get started specifically.", timestamp: new Date() }
+    { role: 'model', text: "ALFRED: What's up?", timestamp: new Date() }
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedContext, setSelectedContext] = useState<string | null>(null);
   const [showContextMenu, setShowContextMenu] = useState(false);
+  const [isReasoningEnabled, setIsReasoningEnabled] = useState(false);
+  const [animationsEnabled, setAnimationsEnabled] = useState(true);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -60,7 +68,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(event.target as Node)) {
         setShowContextMenu(false);
       }
     };
@@ -77,22 +85,26 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
     setIsLoading(true);
 
     // Prepare context string
-    const contextString = selectedContext 
-      ? `User has imported context from the ${selectedContext} module. Please assume access to data and workflows relevant to ${selectedContext}.` 
+    let contextString = selectedContext 
+      ? `User has imported context from the ${selectedContext} module. Assume access to data and workflows relevant to ${selectedContext}.` 
       : "User is in the general dashboard.";
+    
+    if (isReasoningEnabled) {
+      contextString += " EXTENDED REASONING ENABLED: Think deeply and consider all edge cases before answering.";
+    }
 
     try {
       // Convert ChatMessage[] to the format expected by service (history)
       const history = messages.map(m => ({
         role: m.role,
-        parts: [{ text: m.text }]
+        parts: [{ text: m.text.replace('ALFRED: ', '') }] // Strip prefix for history
       }));
 
       const responseText = await generateChatResponse(history, input, contextString);
       
       const botMessage: ChatMessage = {
         role: 'model',
-        text: responseText,
+        text: `ALFRED: ${responseText}`,
         timestamp: new Date()
       };
       
@@ -101,7 +113,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
       console.error("Error sending message:", error);
       setMessages(prev => [...prev, {
         role: 'model',
-        text: "I'm having trouble connecting to the server right now. Please try again.",
+        text: "ALFRED: I'm having trouble connecting to the server right now. Please try again.",
         timestamp: new Date()
       }]);
     } finally {
@@ -121,226 +133,212 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
   if (isMinimized) {
     return (
       <div 
-        className="fixed bottom-6 right-6 bg-gradient-to-r from-green-700 to-green-900 text-white p-4 rounded-full shadow-xl cursor-pointer hover:scale-105 transition-all z-50 flex items-center gap-3 border border-green-500/30"
+        className="fixed bottom-6 right-6 bg-gradient-to-r from-indigo-900 to-purple-900 text-white p-4 rounded-full shadow-xl cursor-pointer hover:scale-105 transition-all z-50 flex items-center gap-3 border border-purple-500/50 overflow-hidden"
         onClick={onMinimize}
       >
+        {/* Mini galaxy effect in minimized state */}
+        <div className="absolute inset-0 opacity-50 galaxy-bg"></div>
+        
         <div className="relative">
-          <Bot className="w-6 h-6" />
-          <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse"></span>
+          <Bot className="w-6 h-6 relative z-10" />
+          <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full animate-pulse z-10 shadow-[0_0_10px_rgba(74,222,128,0.5)]"></span>
         </div>
-        <span className="font-semibold pr-2">Albert</span>
+        <span className="font-semibold pr-2 relative z-10">ALFRED</span>
       </div>
     );
   }
 
   return (
-    <div className="fixed bottom-6 right-6 w-[450px] h-[600px] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl flex flex-col z-50 border border-slate-200 dark:border-slate-700 overflow-hidden animate-in slide-in-from-bottom-10 duration-300 transition-colors">
-      {/* Unified Header */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-4 text-white flex items-center justify-between shadow-md shrink-0 relative overflow-hidden">
-        {/* Background subtle effect */}
-        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-          <div className="absolute -top-10 -left-10 w-40 h-40 bg-green-500 rounded-full blur-3xl"></div>
-          <div className="absolute top-10 right-10 w-32 h-32 bg-blue-500 rounded-full blur-3xl"></div>
+    <div className="fixed bottom-6 right-6 w-[450px] h-[650px] rounded-2xl shadow-2xl flex flex-col z-50 overflow-hidden animate-in slide-in-from-bottom-10 duration-300 ring-1 ring-white/10">
+      
+      {/* Galaxy Background */}
+      <div className="absolute inset-0 galaxy-bg -z-10">
+        {animationsEnabled && (
+          <>
+            <div className="stars"></div>
+            <div className="stars2"></div>
+            {/* Nebulas */}
+            <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[100px] animate-pulse duration-[10s]"></div>
+            <div className="absolute bottom-[-10%] right-[-10%] w-[400px] h-[400px] bg-blue-600/20 rounded-full blur-[80px] animate-pulse duration-[8s]"></div>
+          </>
+        )}
+      </div>
+
+      {/* Header (Minimal & Integrated) */}
+      <div className="p-4 flex items-start justify-between shrink-0 relative z-20">
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg ring-1 ring-white/30 backdrop-blur-md">
+              <Bot className="w-5 h-5 text-white" />
+            </div>
+            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-400 rounded-full border-2 border-slate-900"></div>
+          </div>
+          <div className="flex flex-col">
+            <span className="font-bold text-white text-sm tracking-wide drop-shadow-md">ALFRED</span>
+            <span className="text-[10px] text-indigo-200 uppercase tracking-wider font-medium">System Online</span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 relative z-10">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg ring-2 ring-white/20">
-            <Bot className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h3 className="font-bold text-lg leading-tight flex items-center gap-2">
-              Albert
-              <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-[10px] uppercase tracking-wider rounded-full border border-green-500/30 font-semibold">
-                Online
-              </span>
-            </h3>
-            <p className="text-xs text-slate-400 flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-yellow-400" />
-              AI Assistant
-            </p>
-          </div>
-        </div>
-
-        {/* Right Side Controls */}
-        <div className="flex items-center gap-2 relative z-10">
-          {/* Import From Dropdown */}
-          <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setShowContextMenu(!showContextMenu)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border ${
-                selectedContext 
-                  ? 'bg-green-500/20 border-green-500/50 text-green-300' 
-                  : 'bg-white/10 border-white/10 text-slate-300 hover:bg-white/20 hover:text-white'
-              }`}
-            >
-              <Import className="w-3.5 h-3.5" />
-              {selectedContext ? (
-                <span className="max-w-[80px] truncate">{selectedContext}</span>
-              ) : (
-                "Import From"
-              )}
-              <ChevronDown className={`w-3 h-3 transition-transform ${showContextMenu ? 'rotate-180' : ''}`} />
-            </button>
-
-            {showContextMenu && (
-              <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right z-50">
-                <div className="px-3 py-2 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700">
-                  Import Context
-                </div>
-                <div className="max-h-60 overflow-y-auto py-1">
-                  {MODULES.map((mod) => (
-                    <button
-                      key={mod.id}
-                      onClick={() => {
-                        setSelectedContext(mod.name);
-                        setShowContextMenu(false);
-                        // Optional: Add a system message about context switch
-                        setMessages(prev => [...prev, {
-                          role: 'model',
-                          text: `I've connected to the **${mod.name}**. I can now answer questions specifically related to that module.`,
-                          timestamp: new Date()
-                        }]);
-                      }}
-                      className={`w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${
-                        selectedContext === mod.name 
-                          ? 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 font-medium' 
-                          : 'text-slate-600 dark:text-slate-300'
-                      }`}
-                    >
-                      <div className={`p-1.5 rounded-md ${
-                        selectedContext === mod.name 
-                          ? 'bg-green-100 dark:bg-green-900/30' 
-                          : 'bg-slate-100 dark:bg-slate-700'
-                      }`}>
-                        <mod.icon className="w-3.5 h-3.5" />
-                      </div>
-                      {mod.name}
-                    </button>
-                  ))}
-                </div>
-                {selectedContext && (
-                  <div className="border-t border-slate-100 dark:border-slate-700 p-1">
-                    <button 
-                      onClick={() => {
-                        setSelectedContext(null);
-                        setShowContextMenu(false);
-                      }}
-                      className="w-full text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 py-1.5 rounded text-center transition-colors"
-                    >
-                      Clear Context
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Window Controls */}
-          <div className="flex items-center bg-white/10 rounded-lg border border-white/10 p-0.5 ml-1">
-            <button 
-              onClick={onMinimize} 
-              className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-md transition-colors"
-              title="Minimize"
-            >
-              <Minimize2 className="w-4 h-4" />
-            </button>
-            <div className="w-px h-3 bg-white/10 mx-0.5"></div>
-            <button 
-              onClick={onClose} 
-              className="p-1.5 text-slate-300 hover:text-white hover:bg-red-500/20 hover:text-red-300 rounded-md transition-colors"
-              title="Close"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+        {/* Window Controls inside Chat */}
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={() => setAnimationsEnabled(!animationsEnabled)}
+            className="p-1.5 text-white/50 hover:text-white/90 hover:bg-white/10 rounded-full transition-colors"
+            title={animationsEnabled ? "Pause Animations" : "Play Animations"}
+          >
+            {animationsEnabled ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+          </button>
+          <div className="w-px h-3 bg-white/10 mx-1"></div>
+          <button 
+            onClick={onMinimize} 
+            className="p-1.5 text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <Minimize2 className="w-4 h-4" />
+          </button>
+          <button 
+            onClick={onClose} 
+            className="p-1.5 text-white/70 hover:text-white hover:bg-red-500/30 rounded-lg transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
-      {/* Active Context Indicator (Optional secondary strip, but keeping it clean inside chat or removing) */}
-      {selectedContext && (
-        <div className="bg-green-50 dark:bg-green-900/10 px-4 py-2 text-xs text-green-800 dark:text-green-300 flex items-center justify-between border-b border-green-100 dark:border-green-900/20">
-          <span className="flex items-center gap-2 font-medium">
-            <Database className="w-3 h-3" />
-            Context Active: {selectedContext}
-          </span>
-          <button onClick={() => setSelectedContext(null)} className="hover:text-green-600 dark:hover:text-green-400"><X className="w-3 h-3" /></button>
-        </div>
-      )}
-
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-800/50 space-y-4 scrollbar-thin">
+      {/* Messages Area - 3D feel */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin relative z-10">
         {messages.map((msg, idx) => (
           <div
             key={idx}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-500`}
           >
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
+              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-lg backdrop-blur-sm border ${
                 msg.role === 'user'
-                  ? 'bg-slate-900 dark:bg-slate-700 text-white rounded-tr-none'
-                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-700 rounded-tl-none'
+                  ? 'bg-indigo-600/80 text-white rounded-tr-sm border-indigo-400/30'
+                  : 'glass-panel text-indigo-100 rounded-tl-sm'
               }`}
             >
-              {/* Simple Markdown-like rendering for bold text */}
-              <p className="leading-relaxed whitespace-pre-wrap">
-                {msg.text.split('**').map((part, i) => 
-                  i % 2 === 1 ? <strong key={i}>{part}</strong> : part
-                )}
+              <p className="leading-relaxed whitespace-pre-wrap drop-shadow-sm">
+                {msg.text.replace('ALFRED: ', '')}
               </p>
-              <div className={`text-[10px] mt-1.5 opacity-60 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+              <div className="text-[9px] mt-1.5 opacity-50 text-right uppercase tracking-widest">
+                {msg.role === 'model' && <span className="float-left mr-2 font-bold text-indigo-300">ALFRED</span>}
                 {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
             </div>
           </div>
         ))}
         {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl rounded-tl-none px-4 py-3 border border-slate-100 dark:border-slate-700 shadow-sm flex items-center gap-2">
-              <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce delay-0"></div>
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce delay-150"></div>
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce delay-300"></div>
-              </div>
-              <span className="text-xs text-slate-400 dark:text-slate-500 ml-2 font-medium">Albert is thinking...</span>
+          <div className="flex justify-start animate-pulse">
+            <div className="glass-panel rounded-2xl rounded-tl-sm px-4 py-3 border border-white/10 flex items-center gap-2">
+               <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce delay-0"></div>
+               <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce delay-150"></div>
+               <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce delay-300"></div>
             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
-      <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
-        <div className="relative flex items-center gap-2">
-          <button className="p-2.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+      {/* Input Area - Glassmorphism */}
+      <div className="p-4 bg-black/20 backdrop-blur-md border-t border-white/10 relative z-20">
+        {/* Active Context Badge */}
+        {selectedContext && (
+          <div className="absolute -top-8 left-4 px-3 py-1 bg-indigo-500/20 border border-indigo-500/30 backdrop-blur-md rounded-t-lg text-[10px] text-indigo-200 flex items-center gap-2 animate-in slide-in-from-bottom-2">
+            <Database className="w-3 h-3" />
+            Connected to: <span className="font-bold text-white">{selectedContext}</span>
+            <button onClick={() => setSelectedContext(null)} className="hover:text-white ml-1"><X className="w-3 h-3" /></button>
+          </div>
+        )}
+
+        <div className="relative flex items-end gap-2">
+          {/* Context Import Button */}
+          <div className="relative" ref={contextMenuRef}>
+             <button 
+                onClick={() => setShowContextMenu(!showContextMenu)}
+                className={`p-3 rounded-xl transition-all border ${
+                  selectedContext 
+                    ? 'bg-indigo-500/30 border-indigo-400 text-indigo-200' 
+                    : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-400 hover:text-white'
+                }`}
+                title="Import Context from Modules"
+             >
+               <Import className="w-5 h-5" />
+             </button>
+
+             {/* Context Menu Popup */}
+             {showContextMenu && (
+                <div className="absolute bottom-full left-0 mb-2 w-64 bg-[#0f172a]/95 backdrop-blur-xl rounded-xl shadow-2xl border border-white/10 py-1 overflow-hidden z-50 animate-in zoom-in-95 duration-150">
+                   <div className="px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-white/5">
+                     Import Data From
+                   </div>
+                   <div className="max-h-64 overflow-y-auto scrollbar-thin">
+                     {MODULES.map((mod) => (
+                       <button
+                         key={mod.id}
+                         onClick={() => {
+                           setSelectedContext(mod.name);
+                           setShowContextMenu(false);
+                           setMessages(prev => [...prev, {
+                             role: 'model',
+                             text: `ALFRED: I've established a secure link to the **${mod.name}** module. I'm ready to process data from that source.`,
+                             timestamp: new Date()
+                           }]);
+                         }}
+                         className={`w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-white/5 transition-colors ${
+                           selectedContext === mod.name ? 'text-indigo-400 bg-indigo-500/10' : 'text-slate-300'
+                         }`}
+                       >
+                         <mod.icon className="w-4 h-4 opacity-70" />
+                         {mod.name}
+                       </button>
+                     ))}
+                   </div>
+                </div>
+             )}
+          </div>
+
+          {/* Attachments Button (Visual Only) */}
+          <button className="p-3 text-slate-400 hover:text-white hover:bg-white/10 bg-white/5 border border-white/10 rounded-xl transition-colors" title="Upload PDF or Image">
             <Paperclip className="w-5 h-5" />
           </button>
+          
+          {/* Reasoning Toggle */}
+          <button 
+            onClick={() => setIsReasoningEnabled(!isReasoningEnabled)}
+            className={`p-3 rounded-xl transition-all border ${
+               isReasoningEnabled
+                 ? 'bg-pink-500/20 border-pink-500/50 text-pink-300 shadow-[0_0_10px_rgba(236,72,153,0.2)]'
+                 : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
+            }`}
+            title="Toggle Extended Reasoning"
+          >
+            <Brain className="w-5 h-5" />
+          </button>
+
           <div className="flex-1 relative">
-            <input
-              type="text"
+            <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask Albert anything..."
-              className="w-full pl-4 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600"
+              placeholder="Message ALFRED..."
+              rows={1}
+              className="w-full pl-4 pr-12 py-3 bg-black/40 border border-white/10 rounded-xl focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 transition-all text-sm text-white placeholder:text-white/30 resize-none scrollbar-none"
+              style={{ minHeight: '46px', maxHeight: '100px' }}
               disabled={isLoading}
             />
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || isLoading}
+              className={`absolute right-1.5 bottom-1.5 p-2 rounded-lg transition-all ${
+                input.trim() && !isLoading
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-lg shadow-indigo-500/20'
+                  : 'bg-white/5 text-white/20 cursor-not-allowed'
+              }`}
+            >
+              <Send className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || isLoading}
-            className={`p-2.5 rounded-xl transition-all shadow-md ${
-              input.trim() && !isLoading
-                ? 'bg-slate-900 dark:bg-green-600 text-white hover:bg-slate-800 dark:hover:bg-green-700 hover:scale-105 active:scale-95'
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed'
-            }`}
-          >
-            <Send className="w-5 h-5" />
-          </button>
-        </div>
-        <div className="text-center mt-2">
-          <p className="text-[10px] text-slate-400 dark:text-slate-600">
-            AI can make mistakes. Review generated results.
-          </p>
         </div>
       </div>
     </div>
