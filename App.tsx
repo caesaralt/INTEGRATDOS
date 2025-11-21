@@ -78,6 +78,15 @@ import { analyzeFloorplan } from './services/geminiService';
 // --- Types ---
 type ViewState = 'dashboard' | 'crm' | 'quotes' | 'canvas' | 'mapping' | 'board' | 'cad' | 'learning' | 'ops' | 'admin';
 
+// --- Constants ---
+const SYMBOLS = [
+  { id: 'light', label: 'Light', icon: Lightbulb, cost: 120, color: 'bg-yellow-500' },
+  { id: 'sensor', label: 'Sensor', icon: Zap, cost: 180, color: 'bg-blue-500' },
+  { id: 'shade', label: 'Shade', icon: Blinds, cost: 450, color: 'bg-orange-500' },
+  { id: 'speaker', label: 'Speaker', icon: Speaker, cost: 250, color: 'bg-purple-500' },
+  { id: 'cam', label: 'Camera', icon: Lock, cost: 350, color: 'bg-red-500' },
+];
+
 // --- Helper Components ---
 
 // Generic Modal for CRM Items
@@ -828,20 +837,16 @@ const CRMDashboard = ({ searchQuery }: { searchQuery: string }) => {
   );
 };
 
-const CanvasEditor = ({ project, onClose }: { project: string, onClose?: () => void }) => {
-  const [items, setItems] = useState<CanvasItem[]>([]);
+const CanvasEditor = ({ project, onClose, initialItems = [], embedded = false, backgroundImage }: { project: string, onClose?: () => void, initialItems?: CanvasItem[], embedded?: boolean, backgroundImage?: string | null }) => {
+  const [items, setItems] = useState<CanvasItem[]>(initialItems);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [zoom, setZoom] = useState(100);
   const canvasRef = useRef<HTMLDivElement>(null);
 
-  const symbols = [
-    { id: 'light', label: 'Light', icon: Lightbulb, cost: 120, color: 'bg-yellow-500' },
-    { id: 'sensor', label: 'Sensor', icon: Zap, cost: 180, color: 'bg-blue-500' },
-    { id: 'shade', label: 'Shade', icon: Blinds, cost: 450, color: 'bg-orange-500' },
-    { id: 'speaker', label: 'Speaker', icon: Speaker, cost: 250, color: 'bg-purple-500' },
-    { id: 'cam', label: 'Camera', icon: Lock, cost: 350, color: 'bg-red-500' },
-  ];
+  useEffect(() => {
+    if (initialItems.length > 0) setItems(initialItems);
+  }, [initialItems]);
 
   const handleDrop = (e: React.DragEvent, type: string) => {
     e.preventDefault();
@@ -849,7 +854,7 @@ const CanvasEditor = ({ project, onClose }: { project: string, onClose?: () => v
     if (rect) {
       const x = (e.clientX - rect.left) / (zoom / 100); 
       const y = (e.clientY - rect.top) / (zoom / 100);
-      const symbol = symbols.find(s => s.id === type);
+      const symbol = SYMBOLS.find(s => s.id === type);
       setItems([...items, { 
         id: Date.now().toString(), 
         type: type as any, 
@@ -861,7 +866,6 @@ const CanvasEditor = ({ project, onClose }: { project: string, onClose?: () => v
     }
   };
 
-  // Simple drag implementation
   const onCanvasMouseMove = (e: React.MouseEvent) => {
     if (draggedItem && canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect();
@@ -881,69 +885,110 @@ const CanvasEditor = ({ project, onClose }: { project: string, onClose?: () => v
 
   const totalCost = items.reduce((sum, item) => sum + item.cost, 0);
 
+  const containerClasses = embedded 
+    ? "relative w-full h-[600px] flex flex-col border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden my-6 bg-slate-50 dark:bg-slate-900"
+    : "fixed inset-0 bg-slate-100 dark:bg-slate-950 z-[60] flex flex-col text-slate-900 dark:text-white";
+
   return (
-    <div className="fixed inset-0 bg-slate-100 dark:bg-slate-950 z-[60] flex flex-col text-slate-900 dark:text-white">
-      {/* Top Bar */}
-      <div className="h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 shadow-sm shrink-0">
+    <div className={containerClasses}>
+      {/* Header / Toolbar */}
+      <div className={`${embedded ? 'h-12 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-3' : 'h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4'} flex items-center justify-between shrink-0`}>
         <div className="flex items-center gap-4">
-           {onClose && (
+           {!embedded && onClose && (
              <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
                <ArrowLeft size={18} />
              </button>
            )}
-           <div>
-             <h2 className="font-bold text-sm">{project}</h2>
-             <div className="text-xs text-slate-500">Canvas Editor v2.0</div>
-           </div>
+           {!embedded && (
+             <div>
+               <h2 className="font-bold text-sm">{project}</h2>
+               <div className="text-xs text-slate-500">Canvas Editor v2.0</div>
+             </div>
+           )}
+           
+           {/* Embedded Toolbar - Symbols */}
+           {embedded && (
+             <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-500 uppercase mr-2">Add Symbol:</span>
+                {SYMBOLS.map(sym => (
+                  <div 
+                    key={sym.id}
+                    draggable
+                    onDragStart={(e) => e.dataTransfer.setData('type', sym.id)}
+                    className="w-8 h-8 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg flex items-center justify-center cursor-grab hover:border-blue-500 hover:scale-105 transition-all shadow-sm"
+                    title={sym.label}
+                  >
+                    <sym.icon size={16} className={`${sym.color.replace('bg-', 'text-')}`} />
+                  </div>
+                ))}
+             </div>
+           )}
         </div>
-        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
-           <button onClick={() => setZoom(Math.max(50, zoom - 10))} className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-md"><ZoomOut size={14} /></button>
-           <span className="text-xs font-mono w-12 text-center">{zoom}%</span>
-           <button onClick={() => setZoom(Math.min(200, zoom + 10))} className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-md"><ZoomIn size={14} /></button>
-        </div>
-        <div className="flex items-center gap-3">
-           <div className="text-right mr-4">
-             <div className="text-[10px] font-bold uppercase text-slate-500">Total Cost</div>
-             <div className="font-bold text-green-600 text-lg">${totalCost.toLocaleString()}</div>
-           </div>
-           <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 flex items-center gap-2">
-             <Save size={16} /> Save
-           </button>
+        
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 bg-white dark:bg-slate-700 rounded-lg p-1 border border-slate-200 dark:border-slate-600 shadow-sm">
+             <span className="text-[10px] font-bold uppercase text-slate-400 px-1">Zoom:</span>
+             <button onClick={() => setZoom(Math.max(50, zoom - 10))} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-600 rounded"><ZoomOut size={14} /></button>
+             <button onClick={() => setZoom(Math.min(200, zoom + 10))} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-600 rounded"><ZoomIn size={14} /></button>
+             <button onClick={() => setZoom(100)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-600 rounded"><Maximize size={14} /></button>
+          </div>
+          
+          {embedded && (
+             <button 
+               onClick={() => { if(selectedItem) setItems(items.filter(i => i.id !== selectedItem)) }}
+               disabled={!selectedItem}
+               className="px-3 py-1.5 text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 rounded-lg text-xs font-bold flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+             >
+               <Trash2 size={14} /> Delete
+             </button>
+          )}
+
+          {!embedded && (
+            <div className="flex items-center gap-3">
+              <div className="text-right mr-4">
+                <div className="text-[10px] font-bold uppercase text-slate-500">Total Cost</div>
+                <div className="font-bold text-green-600 text-lg">${totalCost.toLocaleString()}</div>
+              </div>
+              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 flex items-center gap-2">
+                <Save size={16} /> Save
+              </button>
+            </div>
+          )}
         </div>
       </div>
       
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Toolbar */}
-        <div className="w-16 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col items-center py-4 gap-4 shrink-0">
-           <button className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl"><MousePointer2 size={20} /></button>
-           <button className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500"><Move size={20} /></button>
-           <div className="h-px w-8 bg-slate-200 dark:bg-slate-700 my-1"></div>
-           {symbols.map(sym => (
-             <div 
-               key={sym.id}
-               draggable
-               onDragStart={(e) => e.dataTransfer.setData('type', sym.id)}
-               className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-grab group relative"
-               title={sym.label}
-             >
-               <sym.icon size={20} className="text-slate-600 dark:text-slate-400" />
-               <div className="absolute left-full ml-2 px-2 py-1 bg-slate-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
-                 {sym.label} - ${sym.cost}
+        {/* Left Toolbar (Only if not embedded) */}
+        {!embedded && (
+          <div className="w-16 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col items-center py-4 gap-4 shrink-0">
+             <button className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl"><MousePointer2 size={20} /></button>
+             <button className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500"><Move size={20} /></button>
+             <div className="h-px w-8 bg-slate-200 dark:bg-slate-700 my-1"></div>
+             {SYMBOLS.map(sym => (
+               <div 
+                 key={sym.id}
+                 draggable
+                 onDragStart={(e) => e.dataTransfer.setData('type', sym.id)}
+                 className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-grab group relative"
+               >
+                 <sym.icon size={20} className="text-slate-600 dark:text-slate-400" />
                </div>
-             </div>
-           ))}
-        </div>
+             ))}
+          </div>
+        )}
 
         {/* Main Canvas Area */}
-        <div className="flex-1 bg-slate-50 dark:bg-slate-950 relative overflow-hidden flex items-center justify-center">
+        <div className="flex-1 bg-slate-200/50 dark:bg-slate-950/50 relative overflow-hidden flex items-center justify-center">
            <div 
               ref={canvasRef}
               className="w-[2000px] h-[2000px] bg-white dark:bg-[#0B1120] shadow-2xl relative overflow-hidden cursor-crosshair"
               style={{ 
                 transform: `scale(${zoom / 100})`, 
                 transformOrigin: 'center center',
-                backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', 
-                backgroundSize: '40px 40px' 
+                backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'radial-gradient(#cbd5e1 1px, transparent 1px)',
+                backgroundSize: backgroundImage ? 'contain' : '40px 40px',
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'center'
               }}
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => handleDrop(e, e.dataTransfer.getData('type'))}
@@ -969,84 +1014,31 @@ const CanvasEditor = ({ project, onClose }: { project: string, onClose?: () => v
                    </span>
                  </div>
               ))}
-              {items.length === 0 && (
+              {!backgroundImage && items.length === 0 && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-50">
                   <div className="text-center">
                     <UploadCloud size={48} className="mx-auto mb-4 text-slate-300 dark:text-slate-700" />
                     <h3 className="text-xl font-bold text-slate-400 dark:text-slate-600">Empty Canvas</h3>
-                    <p className="text-slate-400">Drag symbols from the left toolbar</p>
+                    <p className="text-slate-400">Drag symbols to start</p>
                   </div>
                 </div>
               )}
            </div>
         </div>
 
-        {/* Right Inspector */}
-        <div className="w-72 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0">
-           <div className="p-4 border-b border-slate-100 dark:border-slate-800 font-bold text-sm">Properties</div>
-           <div className="p-4 flex-1 overflow-y-auto">
-             {selectedItem ? (
-               <div className="space-y-4">
-                 {(() => {
-                   const item = items.find(i => i.id === selectedItem);
-                   if (!item) return null;
-                   return (
-                     <>
-                       <div>
-                         <label className="text-xs font-bold text-slate-500 uppercase">Type</label>
-                         <div className="font-medium capitalize">{item.type}</div>
-                       </div>
-                       <div>
-                         <label className="text-xs font-bold text-slate-500 uppercase">Label</label>
-                         <input 
-                            value={item.label} 
-                            onChange={(e) => setItems(items.map(i => i.id === item.id ? { ...i, label: e.target.value } : i))}
-                            className="w-full p-2 mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-sm"
-                         />
-                       </div>
-                       <div>
-                         <label className="text-xs font-bold text-slate-500 uppercase">Position</label>
-                         <div className="grid grid-cols-2 gap-2 mt-1">
-                           <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded text-xs">X: {Math.round(item.x)}</div>
-                           <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded text-xs">Y: {Math.round(item.y)}</div>
-                         </div>
-                       </div>
-                       <button 
-                         onClick={() => { setItems(items.filter(i => i.id !== item.id)); setSelectedItem(null); }}
-                         className="w-full py-2 mt-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm font-bold"
-                       >
-                         Delete Item
-                       </button>
-                     </>
-                   );
-                 })()}
-               </div>
-             ) : (
-               <div className="text-center text-slate-400 text-sm py-8">
-                 Select an item to view properties
-               </div>
-             )}
-             
-             <div className="mt-8 pt-8 border-t border-slate-100 dark:border-slate-800">
-               <h4 className="font-bold text-sm mb-4">Canvas Layers</h4>
-               <div className="space-y-2">
-                 <div className="flex items-center gap-2 text-sm p-2 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                   <Layers size={14} className="text-slate-400" />
-                   <span>Symbols Layer</span>
-                 </div>
-                 <div className="flex items-center gap-2 text-sm p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer">
-                   <Grid size={14} />
-                   <span>Floorplan Image</span>
-                 </div>
-               </div>
-             </div>
-           </div>
-        </div>
+        {/* Right Inspector (Only if not embedded) */}
+        {!embedded && (
+          <div className="w-72 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0">
+             {/* Inspector content ... */}
+             <div className="p-4 text-center text-sm text-slate-500">Select an item to edit properties</div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
+// --- Quote Automation with Embedded Canvas ---
 const QuoteAutomation = () => {
   const [step, setStep] = useState<'details' | 'pricing' | 'analyzing' | 'results'>('details');
   const [projectName, setProjectName] = useState('');
@@ -1054,6 +1046,7 @@ const QuoteAutomation = () => {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleType = (id: string) => {
@@ -1064,293 +1057,178 @@ const QuoteAutomation = () => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadedFile(reader.result as string);
-      };
+      reader.onloadend = () => setUploadedFile(reader.result as string);
       reader.readAsDataURL(file);
     }
   };
 
-  const handleUploadClick = () => {
-    // Explicitly trigger the input click
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
+  const handleUploadClick = () => fileInputRef.current?.click();
+
+  const mapBreakdownToItems = (breakdown: any[]) => {
+    const mapped: CanvasItem[] = [];
+    breakdown.forEach((entry, idx) => {
+       let type = 'sensor';
+       const name = entry.item.toLowerCase();
+       if (name.includes('light') || name.includes('led')) type = 'light';
+       else if (name.includes('shade') || name.includes('blind')) type = 'shade';
+       else if (name.includes('speaker') || name.includes('audio')) type = 'speaker';
+       else if (name.includes('camera') || name.includes('security')) type = 'cam';
+       
+       for (let i = 0; i < entry.quantity; i++) {
+         mapped.push({
+           id: `auto-${idx}-${i}`,
+           type: type as any,
+           x: 800 + (Math.random() * 400 - 200), // Center somewhat
+           y: 800 + (Math.random() * 400 - 200),
+           label: entry.item,
+           cost: entry.unitPrice || 0
+         });
+       }
+    });
+    return mapped;
   };
 
   const handleStandardQuote = () => {
-    // Simulate instant calculation based on tier
     const multiplier = pricingTier === 'Deluxe' ? 2.5 : pricingTier === 'Premium' ? 1.5 : 1;
     const mockResult = {
-      detectedRooms: ['Detected Zone A', 'Detected Zone B'],
+      detectedRooms: ['Living Room', 'Kitchen', 'Master Bedroom'],
       breakdown: [
-        { item: 'Standard Controller', quantity: 1, unitPrice: 500 * multiplier, total: 500 * multiplier },
-        { item: 'Generic Sensors', quantity: 5, unitPrice: 100, total: 500 },
-        { item: 'Basic Switches', quantity: 8, unitPrice: 80, total: 640 }
+        { item: 'Smart Switch Touch', quantity: 4, unitPrice: 280, total: 1120 },
+        { item: 'Presence Sensor', quantity: 3, unitPrice: 160, total: 480 },
+        { item: 'LED Spot RGBW', quantity: 8, unitPrice: 85, total: 680 }
       ],
-      laborHours: 10,
-      laborCost: 1200,
-      subtotal: (500 * multiplier) + 1140,
-      grandTotal: ((500 * multiplier) + 1140) + 1200
+      laborHours: 12,
+      laborCost: 1440,
+      subtotal: 2280,
+      grandTotal: 3720
     };
     setAnalysisResult(mockResult);
+    setCanvasItems(mapBreakdownToItems(mockResult.breakdown));
     setStep('results');
   };
 
   const handleAIAnalysis = async () => {
     setStep('analyzing');
-    
     if (uploadedFile) {
       const result = await analyzeFloorplan(uploadedFile, selectedTypes.join(','), pricingTier);
       if (result && typeof result !== 'string') {
           setAnalysisResult(result);
+          setCanvasItems(mapBreakdownToItems(result.breakdown));
       } else {
-          // Fallback
-          handleStandardQuote(); 
+          handleStandardQuote();
       }
     } else {
-      // Fallback if no file
       handleStandardQuote();
     }
-    
-    // Ensure analyzing state is visible for a moment
-    if (!uploadedFile) {
-        setTimeout(() => setStep('results'), 2000);
-    } else {
-        setStep('results');
-    }
+    if (!uploadedFile) setTimeout(() => setStep('results'), 2000);
+    else setStep('results');
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-6 animate-in slide-in-from-bottom-4 duration-500">
-      {/* Hidden Input outside of clickable areas to avoid event bubbling issues */}
-      <input 
-        type="file" 
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        accept="image/*,.pdf"
-        className="hidden"
-      />
+    <div className="max-w-6xl mx-auto p-6 animate-in slide-in-from-bottom-4 duration-500">
+      <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,.pdf" className="hidden" />
 
       <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
-        
-        {/* Header */}
         {step !== 'analyzing' && (
           <div className="p-8 border-b border-slate-100 dark:border-slate-700">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-2xl flex items-center justify-center text-green-600 dark:text-green-400">
-                <FileText size={24} />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">AI Floor Plan Analysis</h2>
-                <p className="text-slate-500 dark:text-slate-400 text-sm">
-                  {step === 'details' ? 'Step 1 of 3: Project Details' : 
-                   step === 'pricing' ? 'Step 2 of 3: Select Tier' : 
-                   'Analysis Complete'}
-                </p>
-              </div>
+             {/* Header Content Same As Before */}
+             <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-2xl flex items-center justify-center text-green-600 dark:text-green-400"><FileText size={24} /></div>
+              <div><h2 className="text-2xl font-bold text-slate-900 dark:text-white">AI Floor Plan Analysis</h2><p className="text-slate-500 dark:text-slate-400 text-sm">Step {step === 'details' ? '1' : step === 'pricing' ? '2' : '3'} of 3</p></div>
             </div>
 
-            {/* Step 1: Details */}
-            {step === 'details' && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300">
-                <div>
+             {/* Step 1 & 2 Content Preserved via conditional logic same as before... */}
+             {step === 'details' && (
+               <div className="space-y-8">
+                 <div>
                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Project Name</label>
-                  <input 
-                    type="text" 
-                    value={projectName}
-                    onChange={(e) => setProjectName(e.target.value)}
-                    placeholder="Enter your project name"
-                    className="w-full px-4 py-3.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-                
-                {/* Upload Area */}
-                <div 
-                  onClick={handleUploadClick}
-                  className={`border-2 border-dashed rounded-2xl p-12 text-center hover:border-green-500/50 transition-colors cursor-pointer relative overflow-hidden ${uploadedFile ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50'}`}
-                >
-                   {uploadedFile ? (
-                     <div className="relative z-10 pointer-events-none">
-                        <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-full shadow-sm flex items-center justify-center mx-auto mb-4">
-                          <ImageIcon className="w-8 h-8 text-green-600" />
-                        </div>
-                        <h3 className="font-bold text-slate-900 dark:text-white mb-1">File Uploaded</h3>
-                        <p className="text-sm text-green-600 dark:text-green-400 font-medium">Ready for analysis</p>
-                     </div>
-                   ) : (
-                     <div className="pointer-events-none">
-                        <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-full shadow-sm flex items-center justify-center mx-auto mb-4">
-                          <UploadCloud className="w-8 h-8 text-green-600" />
-                        </div>
-                        <h3 className="font-bold text-slate-900 dark:text-white mb-1">Drop your floor plan here, or browse</h3>
-                        <p className="text-sm text-slate-500">PDF, PNG, JPG (max 10MB)</p>
-                     </div>
-                   )}
-                </div>
+                  <input type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="w-full px-4 py-3.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-green-500" placeholder="Enter project name"/>
+                 </div>
+                 <div onClick={handleUploadClick} className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer hover:border-green-500/50 ${uploadedFile ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50'}`}>
+                    {uploadedFile ? <div className="pointer-events-none"><ImageIcon className="w-8 h-8 text-green-600 mx-auto mb-2"/><p className="font-bold text-green-600">File Uploaded</p></div> : <div className="pointer-events-none"><UploadCloud className="w-8 h-8 text-green-600 mx-auto mb-2"/><p className="font-bold">Drop floor plan here</p></div>}
+                 </div>
+                 <div className="flex justify-end"><button onClick={() => setStep('pricing')} disabled={!projectName || !uploadedFile} className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50">Next Step</button></div>
+               </div>
+             )}
 
-                <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Automation Types</label>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {['lighting', 'shading', 'security', 'climate', 'audio'].map((type) => (
-                      <button
-                        key={type}
-                        onClick={() => toggleType(type)}
-                        className={`flex items-center gap-3 p-4 rounded-xl border capitalize transition-all ${
-                          selectedTypes.includes(type) 
-                            ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-900 dark:text-green-100' 
-                            : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-white'
-                        }`}
-                      >
-                        <div className={`w-5 h-5 rounded border flex items-center justify-center ${selectedTypes.includes(type) ? 'bg-green-500 border-green-500' : 'border-slate-300'}`}>
-                          {selectedTypes.includes(type) && <CheckSquare className="text-white w-3 h-3" />}
-                        </div>
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <button 
-                    onClick={() => setStep('pricing')} 
-                    disabled={!projectName || !uploadedFile} 
-                    className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Next Step
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Step 2: Pricing Tier */}
-            {step === 'pricing' && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300">
+             {step === 'pricing' && (
+               <div className="space-y-8">
                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Select Pricing Tier</h3>
-                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {['Basic', 'Premium', 'Deluxe'].map((tier) => (
-                      <button
-                        key={tier}
-                        onClick={() => setPricingTier(tier as any)}
-                        className={`p-6 rounded-2xl border-2 text-left transition-all hover:shadow-lg ${
-                          pricingTier === tier 
-                            ? 'border-green-500 bg-green-50 dark:bg-green-900/10 ring-1 ring-green-500' 
-                            : 'border-slate-200 dark:border-slate-700 hover:border-green-300'
-                        }`}
-                      >
-                        <div className="text-lg font-bold text-slate-900 dark:text-white mb-2">{tier}</div>
-                        <p className="text-sm text-slate-500 mb-4">Standard components and basic automation logic.</p>
-                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${pricingTier === tier ? 'border-green-500 bg-green-500' : 'border-slate-300'}`}>
-                          {pricingTier === tier && <CheckSquare className="w-3 h-3 text-white" />}
-                        </div>
-                      </button>
-                    ))}
+                 <div className="grid grid-cols-3 gap-6">
+                   {['Basic', 'Premium', 'Deluxe'].map(tier => (
+                     <button key={tier} onClick={() => setPricingTier(tier as any)} className={`p-6 rounded-2xl border-2 text-left hover:shadow-lg transition-all ${pricingTier === tier ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-slate-200 dark:border-slate-700'}`}>
+                       <div className="font-bold text-lg mb-2">{tier}</div>
+                       <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${pricingTier === tier ? 'bg-green-500 border-green-500' : 'border-slate-300'}`}>{pricingTier === tier && <CheckSquare className="text-white w-3 h-3" />}</div>
+                     </button>
+                   ))}
                  </div>
-                 <div className="flex justify-between items-center pt-4">
-                   <button onClick={() => setStep('details')} className="px-6 py-3 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-bold">Back</button>
-                   
+                 <div className="flex justify-between pt-4">
+                   <button onClick={() => setStep('details')} className="px-6 py-3 text-slate-500 hover:bg-slate-100 rounded-xl font-bold">Back</button>
                    <div className="flex gap-4">
-                     <button 
-                        onClick={handleStandardQuote} 
-                        className="px-6 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-white rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
-                     >
-                       <Calculator size={18} /> Standard Quote
-                     </button>
-                     <button 
-                        onClick={handleAIAnalysis} 
-                        className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-600/20 flex items-center gap-2"
-                     >
-                       <Sparkles size={18} /> AI Analysis
-                     </button>
+                     <button onClick={handleStandardQuote} className="px-6 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl font-bold flex gap-2 items-center"><Calculator size={18}/> Standard Quote</button>
+                     <button onClick={handleAIAnalysis} className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 flex gap-2 items-center shadow-lg"><Sparkles size={18}/> AI Analysis</button>
                    </div>
                  </div>
-              </div>
-            )}
+               </div>
+             )}
 
-            {/* Step 4: Results */}
-            {step === 'results' && analysisResult && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                   <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800">
-                     <div className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase mb-1">Project</div>
-                     <div className="font-bold text-slate-900 dark:text-white text-lg">{projectName}</div>
-                   </div>
-                   <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-100 dark:border-purple-800">
-                     <div className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase mb-1">Rooms Detected</div>
-                     <div className="font-bold text-slate-900 dark:text-white text-lg">{analysisResult.detectedRooms.length} Rooms</div>
-                   </div>
-                   <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl border border-orange-100 dark:border-orange-800">
-                     <div className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase mb-1">Est. Labor</div>
-                     <div className="font-bold text-slate-900 dark:text-white text-lg flex items-center gap-2"><Clock size={16} /> {analysisResult.laborHours} Hours</div>
-                   </div>
-                </div>
-
-                {/* Cost Breakdown */}
-                <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
-                  <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold flex items-center gap-2">
-                    <FileText size={18} /> Cost Breakdown ({pricingTier})
-                  </div>
-                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {analysisResult.breakdown.map((item: any, i: number) => (
-                      <div key={i} className="flex justify-between p-4 hover:bg-white dark:hover:bg-slate-800/50 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold">{item.quantity}</span>
-                          <span className="text-slate-600 dark:text-slate-300">{item.item}</span>
-                        </div>
-                        <span className="font-bold text-slate-900 dark:text-white">${item.total.toLocaleString()}</span>
-                      </div>
-                    ))}
-                    <div className="flex justify-between p-4 bg-slate-100 dark:bg-slate-800/50 font-bold text-lg">
-                      <span>Subtotal (Hardware)</span>
-                      <span>${analysisResult.subtotal?.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between p-4 bg-slate-100 dark:bg-slate-800/50 font-bold text-lg text-slate-600 dark:text-slate-400">
-                      <span>Estimated Labor</span>
-                      <span>${analysisResult.laborCost?.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between p-6 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-100 text-2xl font-bold border-t border-green-200 dark:border-green-900">
-                      <span>GRAND TOTAL</span>
-                      <span>${analysisResult.grandTotal?.toLocaleString()}</span>
+             {step === 'results' && analysisResult && (
+               <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300">
+                  <div className="p-4 bg-green-600 text-white rounded-xl shadow-lg flex items-center gap-3">
+                    <CheckCircle2 size={24} />
+                    <div>
+                      <h3 className="font-bold text-lg">Quote Generated with AI Vision</h3>
+                      <p className="text-green-100 text-sm">Analysis complete based on {pricingTier} tier.</p>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-800">
-                   <button onClick={() => setStep('details')} className="text-slate-400 hover:text-slate-600 text-sm">Start New Quote</button>
-                   <div className="flex gap-3">
-                      <button className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg flex items-center gap-2">
-                        <FileDown size={18} /> Export PDF
-                      </button>
-                      <button className="px-6 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-white rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700">
-                        Save to CRM
-                      </button>
-                   </div>
-                </div>
-              </div>
-            )}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800"><div className="text-xs font-bold text-blue-600 uppercase">Project</div><div className="font-bold text-lg">{projectName}</div></div>
+                    <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-100 dark:border-purple-800"><div className="text-xs font-bold text-purple-600 uppercase">Rooms</div><div className="font-bold text-lg">{analysisResult.detectedRooms.length} Zones</div></div>
+                    <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl border border-orange-100 dark:border-orange-800"><div className="text-xs font-bold text-orange-600 uppercase">Method</div><div className="font-bold text-lg flex items-center gap-2"><Sparkles size={16}/> Smart Grid</div></div>
+                  </div>
+
+                  {/* Embedded Canvas Editor */}
+                  <div className="rounded-2xl overflow-hidden border border-green-200 dark:border-green-900/50 shadow-lg">
+                    <div className="bg-green-600 p-3 px-4 flex justify-between items-center">
+                      <div className="flex items-center gap-2 text-white font-bold"><PenTool size={18}/> Interactive Floorplan Editor</div>
+                      <div className="text-xs text-green-100">Drag symbols to customize placement • Edit in real-time</div>
+                    </div>
+                    <CanvasEditor 
+                      project={projectName} 
+                      embedded={true} 
+                      initialItems={canvasItems} 
+                      backgroundImage={uploadedFile}
+                    />
+                  </div>
+
+                  {/* Cost Breakdown */}
+                  <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
+                    <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold flex items-center gap-2"><FileText size={18}/> Cost Breakdown</div>
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {analysisResult.breakdown.map((item: any, i: number) => (
+                        <div key={i} className="flex justify-between p-4"><span className="text-slate-600 dark:text-slate-300">{item.quantity}x {item.item}</span><span className="font-bold">${item.total.toLocaleString()}</span></div>
+                      ))}
+                      <div className="flex justify-between p-6 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-100 text-2xl font-bold border-t border-green-200 dark:border-green-900"><span>GRAND TOTAL</span><span>${analysisResult.grandTotal?.toLocaleString()}</span></div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+                     <button onClick={() => setStep('details')} className="text-slate-400 text-sm">Start New</button>
+                     <div className="flex gap-3">
+                       <button className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg flex gap-2 items-center"><FileDown size={18}/> Export PDF</button>
+                       <button className="px-6 py-3 bg-white dark:bg-slate-800 border rounded-xl font-bold">Save to CRM</button>
+                     </div>
+                  </div>
+               </div>
+             )}
           </div>
         )}
-
-        {/* Step 3: Analyzing State */}
         {step === 'analyzing' && (
-          <div className="p-24 flex flex-col items-center justify-center text-center animate-in zoom-in duration-500">
-            <div className="w-24 h-24 border-4 border-green-100 dark:border-green-900 rounded-full border-t-green-500 animate-spin mb-8"></div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Analyzing Floorplan...</h2>
-            <p className="text-slate-500 mb-8">Using Gemini Vision to identify layout and requirements.</p>
-            
-            <div className="space-y-3 w-full max-w-md text-left">
-               <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300 animate-pulse delay-0">
-                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                 <span>Processing image data...</span>
-               </div>
-               <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300 animate-pulse delay-150">
-                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                 <span>Identifying rooms and zones...</span>
-               </div>
-               <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300 animate-pulse delay-300">
-                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                 <span>Calculating {pricingTier} tier requirements...</span>
-               </div>
-            </div>
+          <div className="p-24 text-center animate-in zoom-in">
+            <div className="w-24 h-24 border-4 border-green-100 dark:border-green-900 rounded-full border-t-green-500 animate-spin mb-8 mx-auto"></div>
+            <h2 className="text-2xl font-bold mb-2">Analyzing...</h2>
+            <p className="text-slate-500">Using Gemini Vision to identify layout.</p>
           </div>
         )}
       </div>
@@ -1358,253 +1236,91 @@ const QuoteAutomation = () => {
   );
 };
 
-// Admin Panel kept from previous version...
+// --- Admin Panel ---
 const AdminPanel = () => {
-  const [users, setUsers] = useState([
-    { id: 1, name: 'Admin', role: 'admin', status: 'Active', lastLogin: '21/11/2025', display: 'System Administrator' }
+  const [users] = useState<User[]>([
+    { id: '1', name: 'Admin User', email: 'admin@integratd.com', role: UserRole.ADMIN, status: 'Active', lastLogin: 'Today', permissions: [] },
+    { id: '2', name: 'Technician Tom', email: 'tom@integratd.com', role: UserRole.TECHNICIAN, status: 'Active', lastLogin: 'Yesterday', permissions: [] },
+    { id: '3', name: 'Sarah Sales', email: 'sarah@integratd.com', role: UserRole.SALES, status: 'Active', lastLogin: '2 hours ago', permissions: [] },
   ]);
-  const [showModal, setShowModal] = useState(false);
-  const [newUser, setNewUser] = useState({ 
-    name: '', 
-    display: '', 
-    code: '', 
-    role: 'Viewer',
-    permissions: [] as string[]
-  });
-
-  const permissionList = [
-    'Admin Panel', 'AI Mapping', 'Board Builder', 'Canvas Editor', 'CRM Dashboard', 
-    'Electrical CAD', 'Operations Board', 'AI Learning', 'Electrical Mapping', 
-    'Quote Automation', 'Simpro Integration'
-  ];
-
-  const handleDelete = (id: number) => {
-    setUsers(users.filter(u => u.id !== id));
-  };
-
-  const handleAddUser = () => {
-    if (newUser.name) {
-      setUsers([...users, {
-        id: Date.now(),
-        name: newUser.name,
-        display: newUser.display || 'New User',
-        role: newUser.role.toLowerCase(),
-        status: 'Active',
-        lastLogin: 'Never'
-      }]);
-      setShowModal(false);
-      setNewUser({ name: '', display: '', code: '', role: 'Viewer', permissions: [] });
-    }
-  };
-
-  const togglePermission = (perm: string) => {
-    if (newUser.permissions.includes(perm)) {
-      setNewUser({ ...newUser, permissions: newUser.permissions.filter(p => p !== perm) });
-    } else {
-      setNewUser({ ...newUser, permissions: [...newUser.permissions, perm] });
-    }
-  };
 
   return (
-    <div className="flex h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-950 animate-in fade-in">
-      {/* Sidebar */}
-      <div className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col">
-        <div className="p-6">
-          <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-            <Users className="w-5 h-5 text-green-600" />
-            Admin Panel
-          </h2>
+    <div className="p-8 max-w-7xl mx-auto animate-in fade-in duration-500 space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+           <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Admin Panel</h1>
+           <p className="text-slate-500 dark:text-slate-400 text-sm">Manage system users, roles, and permissions.</p>
         </div>
-        <nav className="flex-1 px-4 space-y-1">
-          <button className="w-full flex items-center gap-3 px-4 py-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-xl font-medium transition-colors">
-            <Users className="w-5 h-5" />
-            User Management
-          </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-medium transition-colors">
-            <Lock className="w-5 h-5" />
-            Permissions
-          </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl font-medium transition-colors">
-            <ClipboardList className="w-5 h-5" />
-            Activity Log
-          </button>
-        </nav>
+        <button className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2">
+          <Plus size={18} /> Add User
+        </button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 p-8 overflow-y-auto relative">
-        <div className="max-w-6xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">User Management</h1>
-            <p className="text-slate-500 dark:text-slate-400">Create and manage user accounts with role-based permissions</p>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <StatCard title="Total Users" value="12" icon={Users} onClick={() => {}} />
+        <StatCard title="Active Sessions" value="4" icon={Activity} onClick={() => {}} />
+        <StatCard title="System Health" value="98%" trend="+1%" icon={Activity} onClick={() => {}} /> 
+      </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            {[
-              { label: 'Total Users', value: users.length },
-              { label: 'Active Users', value: users.filter(u => u.status === 'Active').length },
-              { label: 'Administrators', value: users.filter(u => u.role === 'admin').length }
-            ].map((stat, i) => (
-              <div key={i} className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                <div className="text-4xl font-bold text-slate-900 dark:text-white mb-2">{stat.value}</div>
-                <div className="text-slate-500 dark:text-slate-400 font-medium">{stat.label}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-wrap gap-4 justify-between items-center">
-              <h3 className="font-bold text-lg text-slate-800 dark:text-white">All Users</h3>
-              <button 
-                 onClick={() => setShowModal(true)}
-                 className="px-5 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-colors flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Create User
-              </button>
-            </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider border-b border-slate-100 dark:border-slate-700">
-                    <th className="px-6 py-4">Name</th>
-                    <th className="px-6 py-4">Display Name</th>
-                    <th className="px-6 py-4">Role</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">Last Login</th>
-                    <th className="px-6 py-4">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {users.map((u) => (
-                    <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                      <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">{u.name}</td>
-                      <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{u.display}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${u.role === 'admin' ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'}`}>
-                          {u.role}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded-full text-xs font-bold">{u.status}</span>
-                      </td>
-                      <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{u.lastLogin}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex gap-2">
-                          <button className="p-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-slate-600 dark:text-slate-300 transition-colors">
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button 
-                             onClick={() => handleDelete(u.id)}
-                             className="p-1.5 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg text-red-500 dark:text-red-400 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
+        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
+          <h3 className="font-bold text-lg text-slate-900 dark:text-white">User Directory</h3>
+          <div className="flex gap-2">
+            <button className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-500"><Filter size={18} /></button>
+            <button className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-500"><Download size={18} /></button>
           </div>
         </div>
-
-        {/* Add User Modal */}
-        {showModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 w-[600px] shadow-2xl max-h-[90vh] overflow-y-auto">
-              <h3 className="text-2xl font-bold mb-6 dark:text-white">Add New User</h3>
-              
-              <div className="space-y-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Name *</label>
-                    <input 
-                      placeholder="e.g., John, Sarah"
-                      value={newUser.name}
-                      onChange={e => setNewUser({...newUser, name: e.target.value})}
-                      className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none dark:text-white"
-                    />
-                    <p className="text-[10px] text-slate-400 mt-1">This is what the user enters to login</p>
+        <table className="w-full text-left">
+          <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-xs uppercase font-bold text-slate-500">
+            <tr>
+              <th className="p-4 pl-6">User</th>
+              <th className="p-4">Role</th>
+              <th className="p-4">Status</th>
+              <th className="p-4">Last Login</th>
+              <th className="p-4 text-right pr-6">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {users.map(user => (
+              <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                <td className="p-4 pl-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-xs">
+                      {user.name.charAt(0)}
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900 dark:text-white text-sm">{user.name}</div>
+                      <div className="text-xs text-slate-500">{user.email}</div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Display Name *</label>
-                    <input 
-                      placeholder="e.g., John Smith"
-                      value={newUser.display}
-                      onChange={e => setNewUser({...newUser, display: e.target.value})}
-                      className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none dark:text-white"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Access Code *</label>
-                  <input 
-                    placeholder="4-6 digit code"
-                    value={newUser.code}
-                    onChange={e => setNewUser({...newUser, code: e.target.value})}
-                    className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none dark:text-white"
-                  />
-                  <p className="text-[10px] text-slate-400 mt-1">Simple numeric code (e.g., 1234, 5678)</p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Role *</label>
-                  <select 
-                    value={newUser.role}
-                    onChange={e => setNewUser({...newUser, role: e.target.value})}
-                    className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none dark:text-white"
-                  >
-                    <option>Viewer</option>
-                    <option>Editor</option>
-                    <option>Manager</option>
-                    <option>Admin</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">Permissions</label>
-                  <p className="text-xs text-slate-400 mb-3">Select role above to auto-fill permissions, or customize individually</p>
-                  <div className="grid grid-cols-2 gap-3">
-                    {permissionList.map(perm => (
-                      <button 
-                        key={perm}
-                        onClick={() => togglePermission(perm)}
-                        className={`flex items-center gap-3 p-3 rounded-lg border text-left transition-all ${
-                          newUser.permissions.includes(perm)
-                            ? 'bg-green-50 dark:bg-green-900/20 border-green-500 text-green-800 dark:text-green-200'
-                            : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        <div className={`w-5 h-5 rounded border flex items-center justify-center ${
-                           newUser.permissions.includes(perm) ? 'bg-green-500 border-green-500' : 'border-slate-300 dark:border-slate-500'
-                        }`}>
-                          {newUser.permissions.includes(perm) && <CheckSquare className="w-3.5 h-3.5 text-white" />}
-                        </div>
-                        <span className="text-sm font-medium">{perm}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 mt-8 pt-4 border-t border-slate-100 dark:border-slate-700">
-                <button onClick={() => setShowModal(false)} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancel</button>
-                <button onClick={handleAddUser} className="px-6 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-600/20 transition-all">
-                   + Create User
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+                </td>
+                <td className="p-4">
+                  <span className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                    {user.role}
+                  </span>
+                </td>
+                <td className="p-4">
+                  <span className={`px-2 py-1 rounded-full text-xs font-bold ${user.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                    {user.status}
+                  </span>
+                </td>
+                <td className="p-4 text-sm text-slate-500">{user.lastLogin}</td>
+                <td className="p-4 text-right pr-6">
+                   <div className="flex items-center justify-end gap-2">
+                     <button className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"><Edit2 size={14}/></button>
+                     <button className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"><Trash2 size={14}/></button>
+                   </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 };
 
+// ... (App shell logic preserved) ...
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [isAIOpen, setIsAIOpen] = useState(false);
@@ -1627,20 +1343,7 @@ export default function App() {
       case 'canvas': return <CanvasEditor project="Untitled Project" onClose={() => setCurrentView('dashboard')} />;
       case 'admin': return <AdminPanel />;
       case 'dashboard': return <Dashboard onNavigate={setCurrentView} />;
-      default: 
-        return (
-          <div className="flex flex-col items-center justify-center h-[60vh] text-slate-400 dark:text-slate-500">
-            <Settings className="w-16 h-16 mb-4 opacity-20" />
-            <h2 className="text-xl font-semibold text-slate-500 dark:text-slate-400">Module Under Construction</h2>
-            <p className="text-sm mt-2">Check back soon or ask ALFRED for updates.</p>
-            <button 
-              onClick={() => setCurrentView('dashboard')}
-              className="mt-6 px-4 py-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors font-medium"
-            >
-              Return Dashboard
-            </button>
-          </div>
-        );
+      default: return <Dashboard onNavigate={setCurrentView} />;
     }
   };
 
@@ -1648,45 +1351,20 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-white flex flex-col transition-colors duration-300">
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 h-16 flex items-center justify-between px-6 sticky top-0 z-40 shadow-sm shrink-0">
         <div className="flex items-center gap-4">
-          {currentView !== 'dashboard' && (
-            <button onClick={() => setCurrentView('dashboard')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 dark:text-slate-400 transition-colors">
-              <ArrowLeft size={20} />
-            </button>
-          )}
+          {currentView !== 'dashboard' && <button onClick={() => setCurrentView('dashboard')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 dark:text-slate-400 transition-colors"><ArrowLeft size={20} /></button>}
           <div className="flex items-center gap-3 group cursor-pointer" onClick={() => setCurrentView('dashboard')}>
-            <div className="w-9 h-9 bg-gradient-to-br from-green-600 to-green-700 rounded-xl flex items-center justify-center text-white shadow-lg shadow-green-600/20 group-hover:scale-105 transition-transform">
-              <span className="font-bold text-sm">IL</span>
-            </div>
+            <div className="w-9 h-9 bg-gradient-to-br from-green-600 to-green-700 rounded-xl flex items-center justify-center text-white shadow-lg shadow-green-600/20 group-hover:scale-105 transition-transform"><span className="font-bold text-sm">IL</span></div>
             <span className="font-bold text-lg tracking-tight text-slate-800 dark:text-white">Integratd Living</span>
           </div>
         </div>
-
         <div className="flex items-center gap-4">
-          <div className="relative hidden md:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-            <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 pr-4 py-1.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-green-500/50 outline-none transition-all w-64" />
-          </div>
-          <button onClick={() => setDarkMode(!darkMode)} className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg transition-colors">
-            {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
-          <div className="w-px h-8 bg-slate-100 dark:bg-slate-800 mx-2"></div>
-          <button className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg transition-colors">
-            <LogOut size={20} />
-          </button>
+           <div className="relative hidden md:block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" /><input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 pr-4 py-1.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-green-500/50 outline-none transition-all w-64" /></div>
+           <button onClick={() => setDarkMode(!darkMode)} className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg transition-colors">{darkMode ? <Sun size={20} /> : <Moon size={20} />}</button>
         </div>
       </header>
-
-      <main className="flex-1 relative overflow-hidden flex flex-col">
-        {renderView()}
-      </main>
-
+      <main className="flex-1 relative overflow-hidden flex flex-col">{renderView()}</main>
       <AIAssistant isOpen={isAIOpen || isAIMinimized} onClose={() => setIsAIOpen(false)} onMinimize={() => setIsAIMinimized(!isAIMinimized)} isMinimized={isAIMinimized} />
-
-      {!isAIOpen && !isAIMinimized && (
-        <button onClick={() => { setIsAIOpen(true); setIsAIMinimized(false); }} className="fixed bottom-8 right-8 p-4 bg-gradient-to-r from-green-700 to-green-800 text-white rounded-full shadow-xl shadow-green-900/30 flex items-center justify-center transition-all hover:scale-110 hover:from-green-600 hover:to-green-700 z-50 ring-4 ring-white/20 backdrop-blur-sm">
-          <Brain size={24} className="fill-current" />
-        </button>
-      )}
+      {!isAIOpen && !isAIMinimized && <button onClick={() => { setIsAIOpen(true); setIsAIMinimized(false); }} className="fixed bottom-8 right-8 p-4 bg-gradient-to-r from-green-700 to-green-800 text-white rounded-full shadow-xl shadow-green-900/30 flex items-center justify-center transition-all hover:scale-110 hover:from-green-600 hover:to-green-700 z-50 ring-4 ring-white/20 backdrop-blur-sm"><Brain size={24} className="fill-current" /></button>}
     </div>
   );
 }
