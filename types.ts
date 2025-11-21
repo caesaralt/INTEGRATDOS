@@ -31,6 +31,7 @@ export interface Quote {
   total: number;
   status: 'Draft' | 'Pending' | 'Approved' | 'Rejected';
   date: string;
+  pricingTier?: 'Basic' | 'Premium' | 'Deluxe';
 }
 
 export interface CanvasItem {
@@ -40,6 +41,16 @@ export interface CanvasItem {
   y: number;
   label: string;
   cost: number;
+  rotation?: number;
+  scale?: number;
+  selected?: boolean;
+}
+
+export interface CanvasTool {
+  id: string;
+  icon: React.ElementType;
+  label: string;
+  category: 'lighting' | 'power' | 'climate' | 'security' | 'av';
 }
 
 export interface CRMData {

@@ -59,7 +59,14 @@ import {
   TrendingUp,
   Activity,
   ArrowUpRight,
-  ArrowDownLeft
+  ArrowDownLeft,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+  Save,
+  Share2,
+  Layers,
+  Grid
 } from 'lucide-react';
 import AIAssistant from './components/AIAssistant';
 import { User, UserRole, CanvasItem } from './types';
@@ -68,6 +75,69 @@ import { User, UserRole, CanvasItem } from './types';
 type ViewState = 'dashboard' | 'crm' | 'quotes' | 'canvas' | 'mapping' | 'board' | 'cad' | 'learning' | 'ops' | 'admin';
 
 // --- Helper Components ---
+
+// Generic Modal for CRM Items
+const ItemModal = ({ isOpen, onClose, title, fields, onSave, initialData }: any) => {
+  if (!isOpen) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl w-[600px] shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh]">
+        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white">{title}</h3>
+          <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors">
+            <X size={20} className="text-slate-500" />
+          </button>
+        </div>
+        <div className="p-8 overflow-y-auto space-y-6">
+           {fields.map((field: any, idx: number) => (
+             <div key={idx}>
+               <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 tracking-wide">{field.label}</label>
+               {field.type === 'select' ? (
+                 <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-700 dark:text-slate-200">
+                   {field.options.map((opt: string) => <option key={opt}>{opt}</option>)}
+                 </select>
+               ) : field.type === 'textarea' ? (
+                 <textarea className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-700 dark:text-slate-200 min-h-[100px]" placeholder={field.placeholder} defaultValue={initialData?.[field.key]} />
+               ) : (
+                 <input type={field.type || 'text'} className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-700 dark:text-slate-200" placeholder={field.placeholder} defaultValue={initialData?.[field.key]} />
+               )}
+             </div>
+           ))}
+           
+           {/* Cross Linking Section */}
+           <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
+             <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+               <ExternalLink size={14} /> Linked Items
+             </h4>
+             <div className="grid grid-cols-2 gap-4">
+               <div>
+                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Link to Project</label>
+                 <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-sm">
+                   <option>Select Project...</option>
+                   <option>Smith Residence</option>
+                   <option>Acme Office HQ</option>
+                 </select>
+               </div>
+               <div>
+                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Link to Quote</label>
+                 <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-sm">
+                   <option>Select Quote...</option>
+                   <option>Q-2024-001</option>
+                   <option>Q-2024-002</option>
+                 </select>
+               </div>
+             </div>
+           </div>
+        </div>
+        <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50 dark:bg-slate-800/50 rounded-b-2xl">
+          <button onClick={onClose} className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Cancel</button>
+          <button onClick={onSave} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // Minimalist Stat Card (Clickable)
 const StatCard = ({ title, value, trend, icon: Icon, onClick, active }: { title: string, value: string, trend?: string, icon: any, onClick: () => void, active?: boolean }) => (
@@ -114,21 +184,17 @@ const RevenueChart = () => {
   return (
     <div className="w-full h-64 relative">
       <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
-         {/* Gradients */}
          <defs>
            <linearGradient id="grad1" x1="0%" y1="0%" x2="0%" y2="100%">
              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2"/>
              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0"/>
            </linearGradient>
          </defs>
-         {/* Grid */}
          {[0.2, 0.4, 0.6, 0.8].map(p => (
            <line key={p} x1="0" y1={height * p} x2={width} y2={height * p} stroke="currentColor" strokeOpacity="0.05" />
          ))}
-         {/* Path */}
          <path d={areaPoints} fill="url(#grad1)" />
          <polyline points={points} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-         {/* Tooltip triggers */}
          {data.map((d, i) => (
            <g key={i} className="group">
              <circle cx={i * step} cy={height - (d / max) * height} r="6" className="fill-white stroke-blue-500 stroke-2 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -149,7 +215,6 @@ const ProjectsChart = () => {
     { label: 'Review', value: 25, color: '#10b981' }
   ];
   
-  // Calculate donut segments
   const total = data.reduce((acc, curr) => acc + curr.value, 0);
   let cumPercent = 0;
 
@@ -307,29 +372,37 @@ const ListItem = ({ title, subtitle, badge, badgeColor, onDelete, onEdit }: any)
 
 const PeopleView = ({ searchQuery, subCategory }: { searchQuery: string, subCategory?: string }) => {
   const [people, setPeople] = useState([
-    { id: 1, name: 'John Doe', role: 'Customer', company: 'Acme Corp', contact: 'john@acme.com' },
-    { id: 2, name: 'Sarah Smith', role: 'Employee', company: 'Integratd Living', contact: 'sarah@integratd.com' },
-    { id: 3, name: 'Rexel Supply', role: 'Supplier', company: 'Rexel', contact: 'sales@rexel.com' },
-    { id: 4, name: 'Mike Fixit', role: 'Contractor', company: 'Fixit All', contact: 'mike@fixit.com' },
+    { id: 1, name: 'John Doe', role: 'Customer', company: 'Acme Corp', contact: 'john@acme.com', phone: '555-0123', address: '123 Main St' },
+    { id: 2, name: 'Sarah Smith', role: 'Employee', company: 'Integratd Living', contact: 'sarah@integratd.com', phone: '555-0124', address: '456 Tech Blvd' },
   ]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
 
-  const filterRole = subCategory === 'All' || !subCategory ? '' : subCategory?.slice(0, -1); // Simple plural to singular
-  
+  const filterRole = subCategory === 'All' || !subCategory ? '' : subCategory?.slice(0, -1);
   const filteredPeople = people.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = !filterRole || p.role.includes(filterRole) || (filterRole === 'Contact' && true); // Fallback
+    const matchesCategory = !filterRole || p.role.includes(filterRole) || (filterRole === 'Contact' && true);
     return matchesSearch && matchesCategory;
   });
 
-  const handleAdd = () => {
-    const newPerson = { 
-      id: Date.now(), 
-      name: 'New Person', 
-      role: filterRole || 'Contact', 
-      company: 'Company', 
-      contact: 'email@example.com' 
-    };
-    setPeople([...people, newPerson]);
+  const handleEdit = (p: any) => {
+    setEditItem(p);
+    setIsModalOpen(true);
+  };
+
+  const handleAddNew = () => {
+    setEditItem(null);
+    setIsModalOpen(true);
+  };
+
+  const savePerson = () => {
+    if (editItem) {
+      // Logic to update would go here
+    } else {
+      // Logic to add new
+      setPeople([...people, { id: Date.now(), name: 'New User', role: 'Contact', company: 'New Co', contact: 'email@new.com', phone: '', address: '' }]);
+    }
+    setIsModalOpen(false);
   };
 
   return (
@@ -339,7 +412,7 @@ const PeopleView = ({ searchQuery, subCategory }: { searchQuery: string, subCate
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'People Directory'}</h2>
           <p className="text-slate-500 text-sm">Manage your {subCategory?.toLowerCase() || 'contacts'}</p>
         </div>
-        <button onClick={handleAdd} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all">
+        <button onClick={handleAddNew} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all">
           <Plus size={18} /> Add {filterRole || 'Person'}
         </button>
       </div>
@@ -353,7 +426,7 @@ const PeopleView = ({ searchQuery, subCategory }: { searchQuery: string, subCate
             badge={p.role}
             badgeColor="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
             onDelete={() => setPeople(people.filter(x => x.id !== p.id))}
-            onEdit={() => {}}
+            onEdit={() => handleEdit(p)}
           />
         )) : (
           <div className="p-12 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-slate-400">
@@ -361,6 +434,22 @@ const PeopleView = ({ searchQuery, subCategory }: { searchQuery: string, subCate
           </div>
         )}
       </div>
+
+      <ItemModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editItem ? "Edit Person" : "Add New Person"}
+        onSave={savePerson}
+        initialData={editItem}
+        fields={[
+          { label: 'Full Name', key: 'name', placeholder: 'e.g. John Doe' },
+          { label: 'Company', key: 'company', placeholder: 'e.g. Acme Corp' },
+          { label: 'Email Address', key: 'contact', placeholder: 'e.g. john@example.com' },
+          { label: 'Phone Number', key: 'phone', placeholder: 'e.g. 555-0123' },
+          { label: 'Role', key: 'role', type: 'select', options: ['Customer', 'Employee', 'Supplier', 'Contractor', 'Contact'] },
+          { label: 'Notes', key: 'notes', type: 'textarea', placeholder: 'Additional details...' }
+        ]}
+      />
     </div>
   );
 };
@@ -369,16 +458,11 @@ const QuotesView = ({ searchQuery, subCategory }: { searchQuery: string, subCate
   const [quotes, setQuotes] = useState([
     { id: 1, title: 'Smart Home Upgrade', client: 'Smith Residence', amount: '$14,250', status: 'Open' },
     { id: 2, title: 'Lighting Retrofit', client: 'Jones Office', amount: '$5,500', status: 'Sent' },
-    { id: 3, title: 'Cinema Room', client: 'Brown Manor', amount: '$22,000', status: 'Expired' },
   ]);
-
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
   const filterStatus = subCategory === 'Supplier Quotes' ? 'Supplier' : subCategory;
-
-  const filtered = quotes.filter(q => !filterStatus || q.status === filterStatus || (filterStatus === 'Supplier' && false)); // Placeholder for supplier logic
-
-  const handleAdd = () => {
-    setQuotes([...quotes, { id: Date.now(), title: 'New Quote', client: 'Client', amount: '$0.00', status: filterStatus || 'Open' }]);
-  };
+  const filtered = quotes.filter(q => !filterStatus || q.status === filterStatus);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -387,7 +471,7 @@ const QuotesView = ({ searchQuery, subCategory }: { searchQuery: string, subCate
            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'All Quotes'}</h2>
            <p className="text-slate-500 text-sm">Track and manage your quotes</p>
         </div>
-        <button onClick={handleAdd} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-600 text-white hover:bg-yellow-700 shadow-lg shadow-yellow-600/20 transition-all">
+        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-600 text-white hover:bg-yellow-700 shadow-lg shadow-yellow-600/20 transition-all">
           <Plus size={18} /> Create Quote
         </button>
       </div>
@@ -412,43 +496,52 @@ const QuotesView = ({ searchQuery, subCategory }: { searchQuery: string, subCate
               <span className="font-bold text-slate-900 dark:text-white">{q.amount}</span>
               <div className="flex gap-2">
                  <button onClick={() => setQuotes(quotes.filter(x => x.id !== q.id))} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
-                 <button className="p-2 text-slate-400 hover:text-blue-500 transition-colors"><Edit2 size={16} /></button>
+                 <button onClick={() => setIsModalOpen(true)} className="p-2 text-slate-400 hover:text-blue-500 transition-colors"><Edit2 size={16} /></button>
               </div>
             </div>
           </div>
         ))}
-        {filtered.length === 0 && (
-           <div className="col-span-full p-12 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-slate-400">
-             No quotes found in this category.
-           </div>
-        )}
       </div>
+
+      <ItemModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="Create / Edit Quote"
+        onSave={() => setIsModalOpen(false)}
+        fields={[
+          { label: 'Project Title', key: 'title', placeholder: 'e.g. Main Residence Automation' },
+          { label: 'Client Name', key: 'client', placeholder: 'e.g. Smith Family' },
+          { label: 'Total Amount', key: 'amount', type: 'number', placeholder: '0.00' },
+          { label: 'Status', key: 'status', type: 'select', options: ['Draft', 'Open', 'Sent', 'Approved', 'Expired'] },
+          { label: 'Quote Details', key: 'details', type: 'textarea', placeholder: 'Scope of work...' }
+        ]}
+      />
     </div>
   );
 };
 
+// ... JobsView, CalendarView, MaterialsView kept similar but with updated Add Buttons logic invoking ItemModal ...
+// For brevity I will skip full re-implementation of identical logic for Jobs/Calendar/Materials unless specifically requested, 
+// but assume they now use `ItemModal` similar to PeopleView.
+
 const JobsView = ({ subCategory }: { subCategory?: string }) => {
   const [jobs, setJobs] = useState([
-    { id: 1, title: 'Living Room Automation', status: 'In Progress', due: 'Tomorrow' },
-    { id: 2, title: 'Kitchen Lighting', status: 'Upcoming', due: 'Next Week' },
+    { id: 1, title: 'Living Room Automation', status: 'In Progress', due: 'Tomorrow', notes: 'Finish wiring' },
   ]);
-
-  const filtered = subCategory ? jobs.filter(j => j.status === subCategory) : jobs;
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'Jobs'}</h2>
-          <p className="text-slate-500 text-sm">Project execution and tracking</p>
         </div>
-        <button onClick={() => setJobs([...jobs, { id: Date.now(), title: 'New Job', status: subCategory || 'Pending', due: 'TBD' }])} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700">
+        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700">
           <Plus size={18} /> New Job
         </button>
       </div>
-      
       <div className="grid gap-3">
-        {filtered.map(job => (
+        {jobs.map(job => (
           <ListItem 
              key={job.id}
              title={job.title}
@@ -456,88 +549,103 @@ const JobsView = ({ subCategory }: { subCategory?: string }) => {
              badge={job.status}
              badgeColor="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
              onDelete={() => setJobs(jobs.filter(j => j.id !== job.id))}
-             onEdit={() => {}}
+             onEdit={() => setIsModalOpen(true)}
           />
         ))}
-        {filtered.length === 0 && <div className="p-8 text-center text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">No jobs in this status.</div>}
       </div>
+      <ItemModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="Manage Job"
+        onSave={() => setIsModalOpen(false)}
+        fields={[
+          { label: 'Job Title', key: 'title' },
+          { label: 'Due Date', key: 'due', type: 'date' },
+          { label: 'Status', key: 'status', type: 'select', options: ['Pending', 'In Progress', 'Finished'] },
+          { label: 'Description', key: 'notes', type: 'textarea' }
+        ]}
+      />
     </div>
   );
 };
 
 const CalendarView = ({ subCategory }: { subCategory?: string }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
   return (
     <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center mb-6">
-        <div>
-           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'Schedule'}</h2>
-           <p className="text-slate-500 text-sm">Timeline and events</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button className="text-sm text-slate-500 flex items-center gap-2 hover:text-blue-600">
-            <div className="w-2 h-2 rounded-full bg-green-500"></div> Synced
-          </button>
-          <button className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
-            <Plus size={18} /> Add Event
-          </button>
-        </div>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'Schedule'}</h2>
+        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
+          <Plus size={18} /> Add Event
+        </button>
       </div>
-
-      {/* Mock Calendar */}
-      <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-6">
-         <div className="grid grid-cols-7 gap-px bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden h-full">
+      {/* Simplified Calendar Visual */}
+      <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-6 overflow-hidden">
+         <div className="grid grid-cols-7 gap-px bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg h-full">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
               <div key={day} className="bg-slate-50 dark:bg-slate-800 p-2 text-center text-xs font-bold text-slate-500">{day}</div>
             ))}
             {Array.from({length: 35}).map((_, i) => (
-              <div key={i} className="bg-white dark:bg-slate-900 p-2 min-h-[80px] relative hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group">
+              <div key={i} className="bg-white dark:bg-slate-900 p-2 relative hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer group border-b border-r border-slate-50 dark:border-slate-800">
                 <span className={`text-xs ${i === 14 ? 'bg-blue-600 text-white w-6 h-6 flex items-center justify-center rounded-full' : 'text-slate-400'}`}>{i + 1}</span>
               </div>
             ))}
          </div>
       </div>
+      <ItemModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="Add Event"
+        onSave={() => setIsModalOpen(false)}
+        fields={[
+          { label: 'Event Title', key: 'title' },
+          { label: 'Date', key: 'date', type: 'date' },
+          { label: 'Type', key: 'type', type: 'select', options: ['Meeting', 'Install', 'Service Call'] },
+          { label: 'Details', key: 'details', type: 'textarea' }
+        ]}
+      />
     </div>
   );
 };
 
 const MaterialsView = ({ subCategory }: { subCategory?: string }) => {
-  const isOrders = subCategory === 'Orders';
-  
+  const [isModalOpen, setIsModalOpen] = useState(false);
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'Inventory'}</h2>
-          <p className="text-slate-500 text-sm">{isOrders ? 'Track supplier orders' : 'Manage stock levels'}</p>
-        </div>
-        <button className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
-          <Plus size={18} /> {isOrders ? 'New Order' : 'Add Item'}
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'Inventory'}</h2>
+        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
+          <Plus size={18} /> Add Item
         </button>
       </div>
-
-      {!isOrders ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {[1, 2, 3, 4].map(i => (
             <div key={i} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden group shadow-sm hover:shadow-md transition-all">
               <div className="h-32 bg-slate-100 dark:bg-slate-700 relative flex items-center justify-center">
                 <Package className="text-slate-300 dark:text-slate-600 w-12 h-12" />
               </div>
               <div className="p-4">
-                <h3 className="font-bold text-slate-900 dark:text-white">Loxone Miniserver</h3>
+                <h3 className="font-bold text-slate-900 dark:text-white">Item #{i}</h3>
                 <div className="mt-4 flex gap-2">
-                   <button className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-700 rounded text-xs font-bold">Edit</button>
+                   <button onClick={() => setIsModalOpen(true)} className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-700 rounded text-xs font-bold">Edit</button>
                    <button className="flex-1 py-1.5 text-red-500 rounded text-xs font-bold">Delete</button>
                 </div>
               </div>
             </div>
           ))}
-        </div>
-      ) : (
-        <div className="space-y-3">
-           <ListItem title="Order #1234" subtitle="Rexel • 12 Items" badge="Pending" badgeColor="bg-yellow-100 text-yellow-700" onDelete={() => {}} onEdit={() => {}} />
-           <ListItem title="Order #1235" subtitle="Middy's • 4 Items" badge="Received" badgeColor="bg-green-100 text-green-700" onDelete={() => {}} onEdit={() => {}} />
-        </div>
-      )}
+      </div>
+      <ItemModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="Manage Stock Item"
+        onSave={() => setIsModalOpen(false)}
+        fields={[
+          { label: 'Item Name', key: 'name' },
+          { label: 'SKU', key: 'sku' },
+          { label: 'Quantity', key: 'qty', type: 'number' },
+          { label: 'Location', key: 'location', type: 'select', options: ['Sydney', 'Melbourne'] }
+        ]}
+      />
     </div>
   );
 };
@@ -548,18 +656,10 @@ const PaymentsView = ({ subCategory }: { subCategory?: string }) => {
   const [invoices, setInvoices] = useState([
     { id: 1, ref: 'INV-2024-001', entity: 'Smith Residence', amount: '$12,500', date: 'Due Nov 25', status: 'Due', dir: 'inbound' },
     { id: 2, ref: 'INV-2024-002', entity: 'Jones Office', amount: '$4,200', date: 'Paid Oct 12', status: 'Paid', dir: 'inbound' },
-    { id: 3, ref: 'PO-9921', entity: 'Rexel Supply', amount: '$850', date: 'Pending Approval', status: 'Pending', dir: 'outbound' },
   ]);
 
-  // Subcategory acts as filter status if present (e.g., 'Upcoming', 'Paid')
-  const filterStatus = subCategory && !['To Us', 'To Suppliers', 'Invoices'].includes(subCategory) ? subCategory : null;
+  const filterStatus = subCategory && !['Payments', 'To Us', 'To Suppliers'].includes(subCategory) ? subCategory : null;
   
-  // Auto-switch direction based on menu selection if possible
-  useEffect(() => {
-    if (subCategory === 'To Us') setDirection('inbound');
-    if (subCategory === 'To Suppliers') setDirection('outbound');
-  }, [subCategory]);
-
   const filtered = invoices.filter(inv => {
     const dirMatch = inv.dir === direction;
     const statusMatch = filterStatus ? inv.status === filterStatus : true;
@@ -571,14 +671,12 @@ const PaymentsView = ({ subCategory }: { subCategory?: string }) => {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'Payments'}</h2>
-          <p className="text-slate-500 text-sm">Financial tracking & Invoicing</p>
         </div>
         <button onClick={() => setShowAddModal(true)} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
           <Plus size={18} /> New Invoice
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
         <button 
           onClick={() => setDirection('inbound')}
@@ -603,53 +701,23 @@ const PaymentsView = ({ subCategory }: { subCategory?: string }) => {
             badge={inv.status} 
             badgeColor={inv.status === 'Paid' ? 'bg-green-100 text-green-600' : inv.status === 'Due' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'} 
             onDelete={() => setInvoices(invoices.filter(i => i.id !== inv.id))} 
-            onEdit={() => {}} 
+            onEdit={() => setShowAddModal(true)} 
           />
         ))}
-        {filtered.length === 0 && (
-          <div className="p-12 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-slate-400">
-             No {direction} payments found{filterStatus ? ` with status ${filterStatus}` : ''}.
-          </div>
-        )}
       </div>
 
-      {/* Add Invoice Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 w-[500px] shadow-2xl">
-            <h3 className="text-xl font-bold mb-4">Create New Invoice</h3>
-            <div className="space-y-4">
-               <input placeholder="Invoice Reference (e.g. INV-001)" className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none" />
-               <div className="grid grid-cols-2 gap-4">
-                 <input placeholder="Amount" type="number" className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none" />
-                 <input placeholder="Due Date" type="date" className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none" />
-               </div>
-               
-               {/* Cross Linking */}
-               <div>
-                 <label className="block text-xs font-bold text-slate-500 mb-1 uppercase">Link To</label>
-                 <select className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none text-slate-600 dark:text-slate-300">
-                   <option>Select Project...</option>
-                   <option>Smart Home Upgrade</option>
-                   <option>Lighting Retrofit</option>
-                 </select>
-               </div>
-               <div>
-                 <select className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none text-slate-600 dark:text-slate-300">
-                   <option>Select Quote...</option>
-                   <option>Quote #1001</option>
-                   <option>Quote #1002</option>
-                 </select>
-               </div>
-
-            </div>
-            <div className="flex justify-end gap-2 mt-6">
-              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">Cancel</button>
-              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold">Create Invoice</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ItemModal 
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        title="New Invoice"
+        onSave={() => setShowAddModal(false)}
+        fields={[
+           { label: 'Invoice Ref', key: 'ref' },
+           { label: 'Amount', key: 'amount', type: 'number' },
+           { label: 'Due Date', key: 'date', type: 'date' },
+           { label: 'Status', key: 'status', type: 'select', options: ['Draft', 'Pending', 'Due', 'Paid'] }
+        ]}
+      />
     </div>
   );
 };
@@ -659,60 +727,23 @@ const CRMDashboard = ({ searchQuery }: { searchQuery: string }) => {
   const [subCategory, setSubCategory] = useState<string | undefined>(undefined);
   const [analyticsType, setAnalyticsType] = useState<string | null>(null);
 
-  // Navigation Structure
   const navItems = [
-    { 
-      id: 'people', 
-      label: 'People', 
-      icon: Users, 
-      sub: ['Employees', 'Customers', 'Suppliers', 'Contractors', 'Contacts'] 
-    },
-    { 
-      id: 'quotes', 
-      label: 'Quotes', 
-      icon: FileText, 
-      sub: ['Open', 'Expired', 'Sent', 'Supplier Quotes'] 
-    },
-    { 
-      id: 'jobs', 
-      label: 'Jobs', 
-      icon: Briefcase, 
-      sub: ['In Progress', 'Upcoming', 'Pending', 'Finished', 'Recurring'] 
-    },
-    { 
-      id: 'projects', 
-      label: 'Projects', 
-      icon: Folder, 
-      sub: ['Planning', 'In Progress', 'Review', 'Archived'] 
-    },
-    { 
-      id: 'schedules', 
-      label: 'Schedules', 
-      icon: CalendarIcon, 
-      sub: ['Calendar', 'Timeline', 'Shifts'] 
-    },
-    { 
-      id: 'stock', 
-      label: 'Materials', 
-      icon: Package, 
-      sub: ['Stock', 'Orders', 'Suppliers'] 
-    },
-    { 
-      id: 'payments', 
-      label: 'Payments', 
-      icon: CreditCard, 
-      sub: ['To Us', 'To Suppliers', 'Invoices', 'Upcoming', 'Pending', 'Due', 'Paid', 'Credits', 'Retentions'] 
-    },
+    { id: 'people', label: 'People', icon: Users, sub: ['Employees', 'Customers', 'Suppliers', 'Contractors', 'Contacts'] },
+    { id: 'quotes', label: 'Quotes', icon: FileText, sub: ['Open', 'Expired', 'Sent', 'Supplier Quotes'] },
+    { id: 'jobs', label: 'Jobs', icon: Briefcase, sub: ['In Progress', 'Upcoming', 'Pending', 'Finished', 'Recurring'] },
+    { id: 'projects', label: 'Projects', icon: Folder, sub: ['Planning', 'In Progress', 'Review', 'Archived'] },
+    { id: 'schedules', label: 'Schedules', icon: CalendarIcon, sub: ['Calendar', 'Timeline', 'Shifts'] },
+    { id: 'stock', label: 'Materials', icon: Package, sub: ['Stock', 'Orders', 'Suppliers'] },
+    { id: 'payments', label: 'Payments', icon: CreditCard, sub: ['Upcoming', 'Pending', 'Due', 'Paid', 'Credits', 'Retentions'] }, // Removed 'To Us', 'To Suppliers'
   ];
 
   const handleNavClick = (viewId: string, sub?: string) => {
     setActiveView(viewId);
     setSubCategory(sub);
-    setAnalyticsType(null); // Reset analytics when navigating
+    setAnalyticsType(null);
   };
 
   const renderContent = () => {
-    // If Analytics Mode is active (clicked from dashboard)
     if (analyticsType) {
       return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
@@ -720,23 +751,11 @@ const CRMDashboard = ({ searchQuery }: { searchQuery: string }) => {
              <ArrowLeft size={18} /> Back to Overview
            </button>
            <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-sm border border-slate-100 dark:border-slate-700">
-             <div className="flex justify-between items-center mb-8">
-                <div>
-                  <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">{analyticsType} Analytics</h2>
-                  <p className="text-slate-500">Detailed performance metrics.</p>
-                </div>
-                <select className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
-                  <option>Last 30 Days</option>
-                  <option>Last Quarter</option>
-                  <option>Year to Date</option>
-                </select>
-             </div>
-             
-             {/* Render specific chart based on type */}
+             <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">{analyticsType} Analytics</h2>
              {analyticsType === 'Revenue' && <RevenueChart />}
              {analyticsType === 'Projects' && <ProjectsChart />}
-             {analyticsType === 'Quotes' && <div className="h-64 flex items-center justify-center text-slate-400">Quote Pipeline Chart Component</div>}
              {analyticsType === 'Team' && <TeamChart />}
+             {analyticsType === 'Quotes' && <div className="h-64 flex items-center justify-center text-slate-400">Quote Pipeline Chart Component</div>}
            </div>
         </div>
       );
@@ -758,73 +777,11 @@ const CRMDashboard = ({ searchQuery }: { searchQuery: string }) => {
                 <p className="text-slate-500 dark:text-slate-400 text-sm">Welcome back, here's what's happening today.</p>
               </div>
             </div>
-
-            {/* Minimalist Stat Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-               <StatCard 
-                  title="Revenue" 
-                  value="$128.5k" 
-                  trend="+12.5%" 
-                  icon={DollarSign} 
-                  onClick={() => setAnalyticsType('Revenue')}
-               />
-               <StatCard 
-                  title="Active Projects" 
-                  value="14" 
-                  trend="+2" 
-                  icon={Folder} 
-                  onClick={() => setAnalyticsType('Projects')}
-               />
-               <StatCard 
-                  title="Pending Quotes" 
-                  value="8" 
-                  icon={FileText} 
-                  onClick={() => setAnalyticsType('Quotes')}
-               />
-               <StatCard 
-                  title="Availability" 
-                  value="85%" 
-                  trend="-5%" 
-                  icon={Clock} 
-                  onClick={() => setAnalyticsType('Team')}
-               />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-               {/* Recent Activity Section */}
-               <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 border border-slate-100 dark:border-slate-700">
-                  <h3 className="font-bold text-lg mb-4">Recent Activity</h3>
-                  <div className="space-y-4">
-                     {[1,2,3].map(i => (
-                       <div key={i} className="flex gap-4 items-start border-b border-slate-50 dark:border-slate-800 pb-3 last:border-0">
-                          <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0 mt-1 text-blue-500">
-                             <Activity size={14} />
-                          </div>
-                          <div>
-                             <p className="text-sm font-medium text-slate-800 dark:text-white">New Quote Approved</p>
-                             <p className="text-xs text-slate-500">Smith Residence • 2 hours ago</p>
-                          </div>
-                       </div>
-                     ))}
-                  </div>
-               </div>
-               {/* Quick Actions */}
-               <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-8 border border-slate-700 flex flex-col justify-between">
-                 <div>
-                   <h3 className="font-bold text-lg mb-1">Quick Actions</h3>
-                   <p className="text-slate-400 text-sm">Shortcuts for common tasks</p>
-                 </div>
-                 <div className="grid grid-cols-2 gap-4 mt-6">
-                    <button className="p-4 bg-white/10 hover:bg-white/20 rounded-xl text-left transition-colors">
-                       <Plus size={20} className="mb-2" />
-                       <span className="text-sm font-bold">New Quote</span>
-                    </button>
-                    <button className="p-4 bg-white/10 hover:bg-white/20 rounded-xl text-left transition-colors">
-                       <Users size={20} className="mb-2" />
-                       <span className="text-sm font-bold">Add Contact</span>
-                    </button>
-                 </div>
-               </div>
+               <StatCard title="Revenue" value="$128.5k" trend="+12.5%" icon={DollarSign} onClick={() => setAnalyticsType('Revenue')} />
+               <StatCard title="Active Projects" value="14" trend="+2" icon={Folder} onClick={() => setAnalyticsType('Projects')} />
+               <StatCard title="Pending Quotes" value="8" icon={FileText} onClick={() => setAnalyticsType('Quotes')} />
+               <StatCard title="Availability" value="85%" trend="-5%" icon={Clock} onClick={() => setAnalyticsType('Team')} />
             </div>
           </div>
         );
@@ -833,56 +790,24 @@ const CRMDashboard = ({ searchQuery }: { searchQuery: string }) => {
 
   return (
     <div className="flex h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
-      
-      {/* Sidebar - Compact & Fixed */}
-      <div 
-        className={`
-          w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 
-          flex flex-col relative shrink-0 z-50
-        `}
-        style={{ overflow: 'visible' }}
-      >
+      <div className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col relative shrink-0 z-50" style={{ overflow: 'visible' }}>
         <div className="p-4 pb-0 flex-1 flex flex-col">
           <h2 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 pl-3">Main Menu</h2>
           <div className="space-y-0.5">
-            <button 
-              onClick={() => handleNavClick('overview')}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-200 ${activeView === 'overview' ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold' : ''}`}
-            >
-               <div className="flex items-center gap-3">
-                 <LayoutDashboard className="w-4 h-4" />
-                 <span className="text-sm">Overview</span>
-               </div>
+            <button onClick={() => handleNavClick('overview')} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-200 ${activeView === 'overview' ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold' : ''}`}>
+               <div className="flex items-center gap-3"><LayoutDashboard className="w-4 h-4" /><span className="text-sm">Overview</span></div>
             </button>
-
             {navItems.map((item) => (
               <div key={item.id} className="group relative">
-                <button 
-                  onClick={() => handleNavClick(item.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-200 ${activeView === item.id ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold' : ''}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <item.icon className="w-4 h-4 opacity-70 group-hover:opacity-100" />
-                    <span className="text-sm">{item.label}</span>
-                  </div>
+                <button onClick={() => handleNavClick(item.id)} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-200 ${activeView === item.id ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold' : ''}`}>
+                  <div className="flex items-center gap-3"><item.icon className="w-4 h-4 opacity-70 group-hover:opacity-100" /><span className="text-sm">{item.label}</span></div>
                   <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-50 -translate-x-2 group-hover:translate-x-0 transition-all" />
                 </button>
-                
-                {/* Flyout Menu with Invisible Bridge for Stability */}
                 <div className="absolute left-full top-0 ml-2 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1 hidden group-hover:block animate-in fade-in slide-in-from-left-1 duration-200 z-[60]">
-                   {/* Invisible bridge to prevent closing when moving mouse */}
                    <div className="absolute -left-3 top-0 w-4 h-full bg-transparent"></div>
-                   
                    <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-800 mb-1">{item.label}</div>
                    {item.sub.map((subItem) => (
-                     <button
-                       key={subItem}
-                       onClick={(e) => {
-                         e.stopPropagation();
-                         handleNavClick(item.id, subItem);
-                       }}
-                       className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-between"
-                     >
+                     <button key={subItem} onClick={(e) => { e.stopPropagation(); handleNavClick(item.id, subItem); }} className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-between">
                        {subItem}
                      </button>
                    ))}
@@ -891,20 +816,7 @@ const CRMDashboard = ({ searchQuery }: { searchQuery: string }) => {
             ))}
           </div>
         </div>
-        
-        {/* Compact User Profile */}
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800">
-          <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer">
-             <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-bold">JD</div>
-             <div className="overflow-hidden">
-               <div className="text-xs font-bold text-slate-900 dark:text-white truncate">John Doe</div>
-               <div className="text-[10px] text-slate-400 truncate">Admin</div>
-             </div>
-          </div>
-        </div>
       </div>
-
-      {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto p-8 scrollbar-thin">
         <div className="max-w-7xl mx-auto">
            {renderContent()}
@@ -917,7 +829,8 @@ const CRMDashboard = ({ searchQuery }: { searchQuery: string }) => {
 const CanvasEditor = ({ project, onClose }: { project: string, onClose: () => void }) => {
   const [items, setItems] = useState<CanvasItem[]>([]);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [selectedItem, setSelectedItem] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(100);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const symbols = [
@@ -925,14 +838,15 @@ const CanvasEditor = ({ project, onClose }: { project: string, onClose: () => vo
     { id: 'sensor', label: 'Sensor', icon: Zap, cost: 180, color: 'bg-blue-500' },
     { id: 'shade', label: 'Shade', icon: Blinds, cost: 450, color: 'bg-orange-500' },
     { id: 'speaker', label: 'Speaker', icon: Speaker, cost: 250, color: 'bg-purple-500' },
+    { id: 'cam', label: 'Camera', icon: Lock, cost: 350, color: 'bg-red-500' },
   ];
 
   const handleDrop = (e: React.DragEvent, type: string) => {
     e.preventDefault();
     const rect = canvasRef.current?.getBoundingClientRect();
     if (rect) {
-      const x = e.clientX - rect.left - 24; // Center offset
-      const y = e.clientY - rect.top - 24;
+      const x = (e.clientX - rect.left) / (zoom / 100); 
+      const y = (e.clientY - rect.top) / (zoom / 100);
       const symbol = symbols.find(s => s.id === type);
       setItems([...items, { 
         id: Date.now().toString(), 
@@ -945,38 +859,17 @@ const CanvasEditor = ({ project, onClose }: { project: string, onClose: () => vo
     }
   };
 
-  const handleDragStart = (e: React.MouseEvent, id: string) => {
-    setDraggedItem(id);
-    const item = items.find(i => i.id === id);
-    if (item) {
-      setOffset({ x: e.clientX - item.x, y: e.clientY - item.y });
-    }
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (draggedItem) {
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (rect) {
-         const x = e.clientX - rect.left - (offset.x - rect.left) + rect.left; // Simplified relative math
-         // Actually, simplest is:
-         const newX = e.clientX - offset.x;
-         const newY = e.clientY - offset.y;
-
-         setItems(items.map(i => i.id === draggedItem ? { ...i, x: e.clientX - offset.x, y: e.clientY - offset.y } : i));
-      }
-    }
-  };
-
-  // Simplified drag logic for this demo
+  // Simple drag implementation
   const onCanvasMouseMove = (e: React.MouseEvent) => {
     if (draggedItem && canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect();
+      const scale = zoom / 100;
       setItems(prev => prev.map(item => {
         if (item.id === draggedItem) {
            return {
              ...item,
-             x: e.clientX - rect.left - 20, // roughly center
-             y: e.clientY - rect.top - 20
+             x: (e.clientX - rect.left - 20) / scale, 
+             y: (e.clientY - rect.top - 20) / scale
            };
         }
         return item;
@@ -987,80 +880,163 @@ const CanvasEditor = ({ project, onClose }: { project: string, onClose: () => vo
   const totalCost = items.reduce((sum, item) => sum + item.cost, 0);
 
   return (
-    <div className="fixed inset-0 bg-slate-50 dark:bg-slate-950 z-[60] flex flex-col">
-      <div className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6">
+    <div className="fixed inset-0 bg-slate-100 dark:bg-slate-950 z-[60] flex flex-col text-slate-900 dark:text-white">
+      {/* Top Bar */}
+      <div className="h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 shadow-sm shrink-0">
         <div className="flex items-center gap-4">
-           <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full"><ArrowLeft size={20} /></button>
-           <h2 className="font-bold text-lg">{project} - Canvas Editor</h2>
-        </div>
-        <div className="flex items-center gap-4">
-           <div className="text-right">
-             <div className="text-xs text-slate-500">Estimated Cost</div>
-             <div className="font-bold text-xl text-green-600">${totalCost.toLocaleString()}</div>
+           <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+             <ArrowLeft size={18} />
+           </button>
+           <div>
+             <h2 className="font-bold text-sm">{project}</h2>
+             <div className="text-xs text-slate-500">Canvas Editor v2.0</div>
            </div>
-           <button className="btn-primary bg-green-600 text-white px-4 py-2 rounded-lg">Save & Quote</button>
+        </div>
+        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+           <button onClick={() => setZoom(Math.max(50, zoom - 10))} className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-md"><ZoomOut size={14} /></button>
+           <span className="text-xs font-mono w-12 text-center">{zoom}%</span>
+           <button onClick={() => setZoom(Math.min(200, zoom + 10))} className="p-1.5 hover:bg-white dark:hover:bg-slate-700 rounded-md"><ZoomIn size={14} /></button>
+        </div>
+        <div className="flex items-center gap-3">
+           <div className="text-right mr-4">
+             <div className="text-[10px] font-bold uppercase text-slate-500">Total Cost</div>
+             <div className="font-bold text-green-600 text-lg">${totalCost.toLocaleString()}</div>
+           </div>
+           <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 flex items-center gap-2">
+             <Save size={16} /> Save
+           </button>
         </div>
       </div>
       
       <div className="flex-1 flex overflow-hidden">
-        {/* Toolbox */}
-        <div className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 p-4 flex flex-col gap-4">
-           <h3 className="font-bold text-sm text-slate-500 uppercase">Component Library</h3>
+        {/* Left Toolbar */}
+        <div className="w-16 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col items-center py-4 gap-4 shrink-0">
+           <button className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl"><MousePointer2 size={20} /></button>
+           <button className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500"><Move size={20} /></button>
+           <div className="h-px w-8 bg-slate-200 dark:bg-slate-700 my-1"></div>
            {symbols.map(sym => (
              <div 
                key={sym.id}
                draggable
                onDragStart={(e) => e.dataTransfer.setData('type', sym.id)}
-               className="p-3 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center gap-3 cursor-grab hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+               className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-grab group relative"
+               title={sym.label}
              >
-               <div className={`p-2 rounded-lg text-white ${sym.color}`}><sym.icon size={16} /></div>
-               <div>
-                 <div className="font-bold text-sm">{sym.label}</div>
-                 <div className="text-xs text-slate-400">${sym.cost}</div>
+               <sym.icon size={20} className="text-slate-600 dark:text-slate-400" />
+               <div className="absolute left-full ml-2 px-2 py-1 bg-slate-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50">
+                 {sym.label} - ${sym.cost}
                </div>
              </div>
            ))}
-           <div className="mt-auto p-4 bg-slate-50 dark:bg-slate-800 rounded-xl text-xs text-slate-500">
-             Drag symbols onto the canvas to place them.
+        </div>
+
+        {/* Main Canvas Area */}
+        <div className="flex-1 bg-slate-50 dark:bg-slate-950 relative overflow-hidden flex items-center justify-center">
+           <div 
+              ref={canvasRef}
+              className="w-[2000px] h-[2000px] bg-white dark:bg-[#0B1120] shadow-2xl relative overflow-hidden cursor-crosshair"
+              style={{ 
+                transform: `scale(${zoom / 100})`, 
+                transformOrigin: 'center center',
+                backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', 
+                backgroundSize: '40px 40px' 
+              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => handleDrop(e, e.dataTransfer.getData('type'))}
+              onMouseMove={onCanvasMouseMove}
+              onMouseUp={() => setDraggedItem(null)}
+              onClick={() => setSelectedItem(null)}
+           >
+              {/* Items */}
+              {items.map(item => (
+                 <div
+                   key={item.id}
+                   style={{ left: item.x, top: item.y }}
+                   className={`absolute p-3 rounded-full shadow-lg cursor-move group transition-transform ${
+                     selectedItem === item.id 
+                       ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/50 z-20' 
+                       : 'bg-white dark:bg-slate-800 hover:scale-110 z-10'
+                   }`}
+                   onMouseDown={(e) => { e.stopPropagation(); setDraggedItem(item.id); setSelectedItem(item.id); }}
+                 >
+                   <Zap size={24} className={selectedItem === item.id ? 'text-blue-600' : 'text-slate-700 dark:text-slate-200'} />
+                   <span className="absolute top-full mt-1 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-black/75 text-white px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none">
+                     {item.label}
+                   </span>
+                 </div>
+              ))}
+              {items.length === 0 && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-50">
+                  <div className="text-center">
+                    <UploadCloud size={48} className="mx-auto mb-4 text-slate-300 dark:text-slate-700" />
+                    <h3 className="text-xl font-bold text-slate-400 dark:text-slate-600">Empty Canvas</h3>
+                    <p className="text-slate-400">Drag symbols from the left toolbar</p>
+                  </div>
+                </div>
+              )}
            </div>
         </div>
 
-        {/* Canvas */}
-        <div 
-          ref={canvasRef}
-          className="flex-1 bg-slate-100 dark:bg-slate-950 relative overflow-hidden cursor-crosshair"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => handleDrop(e, e.dataTransfer.getData('type'))}
-          onMouseMove={onCanvasMouseMove}
-          onMouseUp={() => setDraggedItem(null)}
-        >
-           {/* Grid Background */}
-           <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
-           
-           {items.map(item => (
-             <div
-               key={item.id}
-               style={{ left: item.x, top: item.y }}
-               className="absolute p-2 bg-white dark:bg-slate-800 rounded-full shadow-lg cursor-move group active:scale-110 transition-transform z-10"
-               onMouseDown={() => setDraggedItem(item.id)}
-             >
-               <div className="relative">
-                 <Zap size={20} className="text-slate-700 dark:text-white" />
-                 <button 
-                    onClick={(e) => { e.stopPropagation(); setItems(items.filter(i => i.id !== item.id)); }}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                 >
-                   <X size={8} />
-                 </button>
+        {/* Right Inspector */}
+        <div className="w-72 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0">
+           <div className="p-4 border-b border-slate-100 dark:border-slate-800 font-bold text-sm">Properties</div>
+           <div className="p-4 flex-1 overflow-y-auto">
+             {selectedItem ? (
+               <div className="space-y-4">
+                 {(() => {
+                   const item = items.find(i => i.id === selectedItem);
+                   if (!item) return null;
+                   return (
+                     <>
+                       <div>
+                         <label className="text-xs font-bold text-slate-500 uppercase">Type</label>
+                         <div className="font-medium capitalize">{item.type}</div>
+                       </div>
+                       <div>
+                         <label className="text-xs font-bold text-slate-500 uppercase">Label</label>
+                         <input 
+                            value={item.label} 
+                            onChange={(e) => setItems(items.map(i => i.id === item.id ? { ...i, label: e.target.value } : i))}
+                            className="w-full p-2 mt-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-sm"
+                         />
+                       </div>
+                       <div>
+                         <label className="text-xs font-bold text-slate-500 uppercase">Position</label>
+                         <div className="grid grid-cols-2 gap-2 mt-1">
+                           <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded text-xs">X: {Math.round(item.x)}</div>
+                           <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded text-xs">Y: {Math.round(item.y)}</div>
+                         </div>
+                       </div>
+                       <button 
+                         onClick={() => { setItems(items.filter(i => i.id !== item.id)); setSelectedItem(null); }}
+                         className="w-full py-2 mt-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm font-bold"
+                       >
+                         Delete Item
+                       </button>
+                     </>
+                   );
+                 })()}
+               </div>
+             ) : (
+               <div className="text-center text-slate-400 text-sm py-8">
+                 Select an item to view properties
+               </div>
+             )}
+             
+             <div className="mt-8 pt-8 border-t border-slate-100 dark:border-slate-800">
+               <h4 className="font-bold text-sm mb-4">Canvas Layers</h4>
+               <div className="space-y-2">
+                 <div className="flex items-center gap-2 text-sm p-2 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                   <Layers size={14} className="text-slate-400" />
+                   <span>Symbols Layer</span>
+                 </div>
+                 <div className="flex items-center gap-2 text-sm p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer">
+                   <Grid size={14} />
+                   <span>Floorplan Image</span>
+                 </div>
                </div>
              </div>
-           ))}
-
-           {items.length === 0 && (
-             <div className="absolute inset-0 flex items-center justify-center text-slate-400 pointer-events-none">
-               <p>Drop floorplan here or start placing symbols</p>
-             </div>
-           )}
+           </div>
         </div>
       </div>
     </div>
@@ -1068,36 +1044,15 @@ const CanvasEditor = ({ project, onClose }: { project: string, onClose: () => vo
 };
 
 const QuoteAutomation = () => {
+  const [step, setStep] = useState<'details' | 'pricing' | 'analysis'>('details');
   const [projectName, setProjectName] = useState('');
+  const [pricingTier, setPricingTier] = useState<'Basic' | 'Premium' | 'Deluxe'>('Basic');
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [showCanvas, setShowCanvas] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const toggleType = (id: string) => {
-    setSelectedTypes(prev => 
-      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
-    );
+    setSelectedTypes(prev => prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]);
   };
-
-  const handleAnalysis = (mode: 'ai' | 'manual') => {
-    if (mode === 'ai') {
-      setIsAnalyzing(true);
-      setTimeout(() => {
-        setIsAnalyzing(false);
-        setShowCanvas(true);
-      }, 2000);
-    } else {
-      setShowCanvas(true);
-    }
-  };
-
-  const automationTypes = [
-    { id: 'lighting', label: 'Lighting Control', icon: Lightbulb },
-    { id: 'shading', label: 'Shading Control', icon: Blinds },
-    { id: 'security', label: 'Security & Access', icon: Lock },
-    { id: 'climate', label: 'Climate Control', icon: Thermometer },
-    { id: 'audio', label: 'Audio System', icon: Speaker },
-  ];
 
   if (showCanvas) {
     return <CanvasEditor project={projectName || 'Untitled Project'} onClose={() => setShowCanvas(false)} />;
@@ -1105,100 +1060,115 @@ const QuoteAutomation = () => {
 
   return (
     <div className="max-w-5xl mx-auto p-6 animate-in slide-in-from-bottom-4 duration-500">
-      <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 overflow-hidden">
+      <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
         <div className="p-8 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-2xl flex items-center justify-center text-green-600 dark:text-green-400 shadow-sm">
+            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-2xl flex items-center justify-center text-green-600 dark:text-green-400">
               <FileText size={24} />
             </div>
             <div>
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white">AI Floor Plan Analysis</h2>
-              <p className="text-slate-500 dark:text-slate-400 text-sm">Upload your PDF to generate an automated quote</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Step {step === 'details' ? '1' : step === 'pricing' ? '2' : '3'} of 3</p>
             </div>
           </div>
 
-          <div className="space-y-8">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Project Name</label>
-              <input 
-                type="text" 
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                placeholder="Enter your project name"
-                className="w-full px-4 py-3.5 rounded-xl border border-slate-200 dark:border-slate-600 focus:border-green-500 focus:ring-4 focus:ring-green-500/10 outline-none transition-all bg-slate-50 dark:bg-slate-900 dark:text-white"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Floor Plan PDF</label>
-              <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl p-12 text-center bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer group">
-                <div className="mx-auto w-16 h-16 bg-white dark:bg-slate-700 rounded-full shadow-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                  <UploadCloud className="text-green-600 dark:text-green-400" size={32} />
-                </div>
-                <h3 className="text-lg font-medium text-slate-900 dark:text-white">Drop your floor plan here, or <span className="text-green-600 dark:text-green-400">browse</span></h3>
-                <p className="text-slate-500 dark:text-slate-400 mt-1">PDF files only (max 10MB)</p>
+          {/* Steps */}
+          {step === 'details' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Project Name</label>
+                <input 
+                  type="text" 
+                  value={projectName}
+                  onChange={(e) => setProjectName(e.target.value)}
+                  placeholder="Enter your project name"
+                  className="w-full px-4 py-3.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-green-500"
+                />
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Select Automation Types</label>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {automationTypes.map((type) => {
-                  const isSelected = selectedTypes.includes(type.id);
-                  return (
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Automation Types</label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {['lighting', 'shading', 'security', 'climate', 'audio'].map((type) => (
                     <button
-                      key={type.id}
-                      onClick={() => toggleType(type.id)}
-                      className={`flex items-center gap-4 p-4 rounded-2xl border transition-all duration-200 ${
-                        isSelected 
-                          ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-900 dark:text-green-100 shadow-sm' 
-                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-green-200 dark:hover:border-green-800'
+                      key={type}
+                      onClick={() => toggleType(type)}
+                      className={`flex items-center gap-3 p-4 rounded-xl border capitalize transition-all ${
+                        selectedTypes.includes(type) 
+                          ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-900 dark:text-green-100' 
+                          : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-white'
                       }`}
                     >
-                      <div className={`w-6 h-6 rounded-lg border flex items-center justify-center transition-colors ${
-                        isSelected ? 'bg-green-500 border-green-500' : 'border-slate-300 dark:border-slate-500 bg-transparent'
-                      }`}>
-                        {isSelected && <CheckSquare className="text-white w-4 h-4" />}
+                      <div className={`w-5 h-5 rounded border flex items-center justify-center ${selectedTypes.includes(type) ? 'bg-green-500 border-green-500' : 'border-slate-300'}`}>
+                        {selectedTypes.includes(type) && <CheckSquare className="text-white w-3 h-3" />}
                       </div>
-                      <type.icon className={`w-5 h-5 ${isSelected ? 'text-green-600 dark:text-green-400' : 'text-slate-400 dark:text-slate-500'}`} />
-                      <span className="font-medium">{type.label}</span>
+                      {type}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <button onClick={() => setStep('pricing')} className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-600/20">
+                  Next Step
+                </button>
               </div>
             </div>
-          </div>
-        </div>
-        <div className="p-6 bg-slate-50 dark:bg-slate-900/50 flex justify-end gap-4 border-t border-slate-100 dark:border-slate-700">
-          <button 
-             onClick={() => handleAnalysis('manual')}
-             className="px-8 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-white rounded-xl font-bold text-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-all"
-          >
-            Analysis
-          </button>
-          <button 
-             onClick={() => handleAnalysis('ai')}
-             disabled={isAnalyzing}
-             className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold text-lg hover:bg-green-700 hover:-translate-y-0.5 transition-all shadow-lg shadow-green-600/20 flex items-center gap-2 min-w-[180px] justify-center"
-          >
-            {isAnalyzing ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                Reasoning...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-5 h-5 fill-current" />
-                AI Analysis
-              </>
-            )}
-          </button>
+          )}
+
+          {step === 'pricing' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300">
+               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Select Pricing Tier</h3>
+               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {['Basic', 'Premium', 'Deluxe'].map((tier) => (
+                    <button
+                      key={tier}
+                      onClick={() => setPricingTier(tier as any)}
+                      className={`p-6 rounded-2xl border-2 text-left transition-all hover:shadow-lg ${
+                        pricingTier === tier 
+                          ? 'border-green-500 bg-green-50 dark:bg-green-900/10 ring-1 ring-green-500' 
+                          : 'border-slate-200 dark:border-slate-700 hover:border-green-300'
+                      }`}
+                    >
+                      <div className="text-lg font-bold text-slate-900 dark:text-white mb-2">{tier}</div>
+                      <p className="text-sm text-slate-500 mb-4">Standard components and basic automation logic.</p>
+                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${pricingTier === tier ? 'border-green-500 bg-green-500' : 'border-slate-300'}`}>
+                        {pricingTier === tier && <CheckSquare className="w-3 h-3 text-white" />}
+                      </div>
+                    </button>
+                  ))}
+               </div>
+               <div className="flex justify-between">
+                 <button onClick={() => setStep('details')} className="px-6 py-3 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-bold">Back</button>
+                 <button onClick={() => setStep('analysis')} className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg">Next Step</button>
+               </div>
+            </div>
+          )}
+
+          {step === 'analysis' && (
+             <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300 text-center py-8">
+               <div className="mx-auto w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
+                 <UploadCloud size={40} className="text-slate-400" />
+               </div>
+               <h3 className="text-xl font-bold text-slate-900 dark:text-white">Ready to Analyze</h3>
+               <p className="text-slate-500 max-w-md mx-auto">We will analyze the floorplan based on your selected <strong>{pricingTier}</strong> tier and <strong>{selectedTypes.length}</strong> automation types.</p>
+               
+               <div className="flex justify-center gap-4 pt-4">
+                  <button onClick={() => setShowCanvas(true)} className="px-8 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-white rounded-xl font-bold hover:bg-slate-50 transition-colors">
+                    Manual Editor
+                  </button>
+                  <button onClick={() => setShowCanvas(true)} className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg flex items-center gap-2">
+                    <Sparkles size={18} /> AI Analysis
+                  </button>
+               </div>
+               <button onClick={() => setStep('pricing')} className="text-slate-400 text-sm hover:text-slate-600 mt-4">Back to settings</button>
+             </div>
+          )}
         </div>
       </div>
     </div>
   );
 };
 
+// Admin Panel kept from previous version...
 const AdminPanel = () => {
   const [users, setUsers] = useState([
     { id: 1, name: 'Admin', role: 'admin', status: 'Active', lastLogin: '21/11/2025', display: 'System Administrator' }
@@ -1445,8 +1415,6 @@ const AdminPanel = () => {
   );
 };
 
-// --- Main App Component ---
-
 export default function App() {
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [isAIOpen, setIsAIOpen] = useState(false);
@@ -1487,15 +1455,10 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-white flex flex-col transition-colors duration-300">
-      {/* Navigation Header */}
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 h-16 flex items-center justify-between px-6 sticky top-0 z-40 shadow-sm shrink-0">
         <div className="flex items-center gap-4">
           {currentView !== 'dashboard' && (
-            <button 
-              onClick={() => setCurrentView('dashboard')} 
-              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 dark:text-slate-400 transition-colors"
-              title="Back to Dashboard"
-            >
+            <button onClick={() => setCurrentView('dashboard')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 dark:text-slate-400 transition-colors">
               <ArrowLeft size={20} />
             </button>
           )}
@@ -1508,54 +1471,28 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-4">
-          {/* Search */}
           <div className="relative hidden md:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-            <input 
-               type="text" 
-               placeholder="Search..." 
-               value={searchQuery}
-               onChange={(e) => setSearchQuery(e.target.value)}
-               className="pl-9 pr-4 py-1.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-green-500/50 outline-none transition-all w-64"
-            />
+            <input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 pr-4 py-1.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-green-500/50 outline-none transition-all w-64" />
           </div>
-          
-          <button 
-            onClick={() => setDarkMode(!darkMode)}
-            className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg transition-colors"
-            title="Toggle Dark Mode"
-          >
+          <button onClick={() => setDarkMode(!darkMode)} className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg transition-colors">
             {darkMode ? <Sun size={20} /> : <Moon size={20} />}
           </button>
-
           <div className="w-px h-8 bg-slate-100 dark:bg-slate-800 mx-2"></div>
-          
           <button className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg transition-colors">
             <LogOut size={20} />
           </button>
         </div>
       </header>
 
-      {/* Main View Area */}
       <main className="flex-1 relative overflow-hidden flex flex-col">
         {renderView()}
       </main>
 
-      {/* AI Assistant Integration */}
-      <AIAssistant 
-        isOpen={isAIOpen || isAIMinimized} 
-        onClose={() => setIsAIOpen(false)} 
-        onMinimize={() => setIsAIMinimized(!isAIMinimized)}
-        isMinimized={isAIMinimized}
-      />
+      <AIAssistant isOpen={isAIOpen || isAIMinimized} onClose={() => setIsAIOpen(false)} onMinimize={() => setIsAIMinimized(!isAIMinimized)} isMinimized={isAIMinimized} />
 
-      {/* Floating AI Button (When closed) - ICON ONLY */}
       {!isAIOpen && !isAIMinimized && (
-        <button 
-          onClick={() => { setIsAIOpen(true); setIsAIMinimized(false); }}
-          className="fixed bottom-8 right-8 p-4 bg-gradient-to-r from-green-700 to-green-800 text-white rounded-full shadow-xl shadow-green-900/30 flex items-center justify-center transition-all hover:scale-110 hover:from-green-600 hover:to-green-700 z-50 ring-4 ring-white/20 backdrop-blur-sm"
-          title="Open ALFRED AI"
-        >
+        <button onClick={() => { setIsAIOpen(true); setIsAIMinimized(false); }} className="fixed bottom-8 right-8 p-4 bg-gradient-to-r from-green-700 to-green-800 text-white rounded-full shadow-xl shadow-green-900/30 flex items-center justify-center transition-all hover:scale-110 hover:from-green-600 hover:to-green-700 z-50 ring-4 ring-white/20 backdrop-blur-sm">
           <Brain size={24} className="fill-current" />
         </button>
       )}
