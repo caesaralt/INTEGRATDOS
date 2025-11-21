@@ -1,0 +1,8 @@
+{
+  "name": "Integratd Living OS",
+  "description": "A comprehensive enterprise operating system for home automation workflow, featuring CRM, Quote Automation, Canvas Editing, and AI-powered assistance.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
