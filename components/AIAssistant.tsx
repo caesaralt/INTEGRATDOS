@@ -134,7 +134,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
   }
 
   return (
-    <div className="fixed bottom-6 right-6 w-[450px] h-[600px] bg-white rounded-2xl shadow-2xl flex flex-col z-50 border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-10 duration-300">
+    <div className="fixed bottom-6 right-6 w-[450px] h-[600px] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl flex flex-col z-50 border border-slate-200 dark:border-slate-700 overflow-hidden animate-in slide-in-from-bottom-10 duration-300 transition-colors">
       {/* Unified Header */}
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 p-4 text-white flex items-center justify-between shadow-md shrink-0 relative overflow-hidden">
         {/* Background subtle effect */}
@@ -183,8 +183,8 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
             </button>
 
             {showContextMenu && (
-              <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right z-50">
-                <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider bg-slate-50 border-b border-slate-100">
+              <div className="absolute top-full right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right z-50">
+                <div className="px-3 py-2 text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700">
                   Import Context
                 </div>
                 <div className="max-h-60 overflow-y-auto py-1">
@@ -201,11 +201,17 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
                           timestamp: new Date()
                         }]);
                       }}
-                      className={`w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-slate-50 transition-colors ${
-                        selectedContext === mod.name ? 'text-green-600 bg-green-50 font-medium' : 'text-slate-600'
+                      className={`w-full px-4 py-2.5 text-sm text-left flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${
+                        selectedContext === mod.name 
+                          ? 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 font-medium' 
+                          : 'text-slate-600 dark:text-slate-300'
                       }`}
                     >
-                      <div className={`p-1.5 rounded-md ${selectedContext === mod.name ? 'bg-green-100' : 'bg-slate-100'}`}>
+                      <div className={`p-1.5 rounded-md ${
+                        selectedContext === mod.name 
+                          ? 'bg-green-100 dark:bg-green-900/30' 
+                          : 'bg-slate-100 dark:bg-slate-700'
+                      }`}>
                         <mod.icon className="w-3.5 h-3.5" />
                       </div>
                       {mod.name}
@@ -213,13 +219,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
                   ))}
                 </div>
                 {selectedContext && (
-                  <div className="border-t border-slate-100 p-1">
+                  <div className="border-t border-slate-100 dark:border-slate-700 p-1">
                     <button 
                       onClick={() => {
                         setSelectedContext(null);
                         setShowContextMenu(false);
                       }}
-                      className="w-full text-xs text-red-500 hover:bg-red-50 py-1.5 rounded text-center transition-colors"
+                      className="w-full text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 py-1.5 rounded text-center transition-colors"
                     >
                       Clear Context
                     </button>
@@ -252,17 +258,17 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
 
       {/* Active Context Indicator (Optional secondary strip, but keeping it clean inside chat or removing) */}
       {selectedContext && (
-        <div className="bg-green-50 px-4 py-2 text-xs text-green-800 flex items-center justify-between border-b border-green-100">
+        <div className="bg-green-50 dark:bg-green-900/10 px-4 py-2 text-xs text-green-800 dark:text-green-300 flex items-center justify-between border-b border-green-100 dark:border-green-900/20">
           <span className="flex items-center gap-2 font-medium">
             <Database className="w-3 h-3" />
             Context Active: {selectedContext}
           </span>
-          <button onClick={() => setSelectedContext(null)} className="hover:text-green-600"><X className="w-3 h-3" /></button>
+          <button onClick={() => setSelectedContext(null)} className="hover:text-green-600 dark:hover:text-green-400"><X className="w-3 h-3" /></button>
         </div>
       )}
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 bg-slate-50 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-800/50 space-y-4 scrollbar-thin">
         {messages.map((msg, idx) => (
           <div
             key={idx}
@@ -271,8 +277,8 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
             <div
               className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${
                 msg.role === 'user'
-                  ? 'bg-slate-900 text-white rounded-tr-none'
-                  : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none'
+                  ? 'bg-slate-900 dark:bg-slate-700 text-white rounded-tr-none'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-100 dark:border-slate-700 rounded-tl-none'
               }`}
             >
               {/* Simple Markdown-like rendering for bold text */}
@@ -289,13 +295,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
         ))}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-white rounded-2xl rounded-tl-none px-4 py-3 border border-slate-100 shadow-sm flex items-center gap-2">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl rounded-tl-none px-4 py-3 border border-slate-100 dark:border-slate-700 shadow-sm flex items-center gap-2">
               <div className="flex space-x-1">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce delay-0"></div>
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce delay-150"></div>
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-bounce delay-300"></div>
               </div>
-              <span className="text-xs text-slate-400 ml-2 font-medium">Albert is thinking...</span>
+              <span className="text-xs text-slate-400 dark:text-slate-500 ml-2 font-medium">Albert is thinking...</span>
             </div>
           </div>
         )}
@@ -303,9 +309,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-white border-t border-slate-100">
+      <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
         <div className="relative flex items-center gap-2">
-          <button className="p-2.5 text-slate-400 hover:bg-slate-100 rounded-xl transition-colors">
+          <button className="p-2.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
             <Paperclip className="w-5 h-5" />
           </button>
           <div className="flex-1 relative">
@@ -315,27 +321,24 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Ask Albert anything..."
-              className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all text-sm text-slate-700 placeholder:text-slate-400"
+              className="w-full pl-4 pr-10 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all text-sm text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-600"
               disabled={isLoading}
             />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2">
-               {/* Optional icon inside input */}
-            </div>
           </div>
           <button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
             className={`p-2.5 rounded-xl transition-all shadow-md ${
               input.trim() && !isLoading
-                ? 'bg-slate-900 text-white hover:bg-slate-800 hover:scale-105 active:scale-95'
-                : 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                ? 'bg-slate-900 dark:bg-green-600 text-white hover:bg-slate-800 dark:hover:bg-green-700 hover:scale-105 active:scale-95'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-300 dark:text-slate-600 cursor-not-allowed'
             }`}
           >
             <Send className="w-5 h-5" />
           </button>
         </div>
         <div className="text-center mt-2">
-          <p className="text-[10px] text-slate-400">
+          <p className="text-[10px] text-slate-400 dark:text-slate-600">
             AI can make mistakes. Review generated results.
           </p>
         </div>
