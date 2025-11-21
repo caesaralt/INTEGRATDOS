@@ -69,7 +69,8 @@ import {
   Eye,
   FileDown,
   ImageIcon,
-  Calculator
+  Calculator,
+  Wrench
 } from 'lucide-react';
 import AIAssistant from './components/AIAssistant';
 import { User, UserRole, CanvasItem } from './types';
@@ -533,6 +534,93 @@ const QuotesView = ({ searchQuery, subCategory }: { searchQuery: string, subCate
   );
 };
 
+const ProjectsView = ({ searchQuery, subCategory }: { searchQuery: string, subCategory?: string }) => {
+  const [projects, setProjects] = useState([
+    { id: 1, title: 'Smith Residence', client: 'John Smith', status: 'Active', completion: 65, deadline: 'Dec 20, 2024' },
+    { id: 2, title: 'Acme HQ Automation', client: 'Acme Corp', status: 'Planning', completion: 15, deadline: 'Jan 15, 2025' },
+    { id: 3, title: 'Westside Apartments', client: 'Westside Dev', status: 'Review', completion: 95, deadline: 'Nov 30, 2024' }
+  ]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const filtered = projects.filter(p => {
+    const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = !subCategory || p.status === subCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'All Projects'}</h2>
+          <p className="text-slate-500 text-sm">Manage your ongoing installations</p>
+        </div>
+        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all">
+          <Plus size={18} /> New Project
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filtered.map((p) => (
+          <div key={p.id} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all group">
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                  <Folder size={20} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 dark:text-white leading-tight">{p.title}</h3>
+                  <p className="text-xs text-slate-500">{p.client}</p>
+                </div>
+              </div>
+              <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                p.status === 'Active' ? 'bg-blue-100 text-blue-700' : 
+                p.status === 'Planning' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
+              }`}>
+                {p.status}
+              </span>
+            </div>
+            
+            <div className="mb-4">
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-slate-500">Progress</span>
+                <span className="font-bold text-slate-700 dark:text-slate-300">{p.completion}%</span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                <div className="bg-blue-500 h-full rounded-full transition-all duration-500" style={{ width: `${p.completion}%` }}></div>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-700">
+              <div className="flex items-center gap-1 text-xs text-slate-500">
+                <Clock size={14} />
+                <span>Due: {p.deadline}</span>
+              </div>
+              <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
+                <MoreVertical size={16} />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <ItemModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="New Project"
+        onSave={() => setIsModalOpen(false)}
+        fields={[
+          { label: 'Project Title', key: 'title', placeholder: 'e.g. Downtown Office' },
+          { label: 'Client', key: 'client', placeholder: 'Client Name' },
+          { label: 'Status', key: 'status', type: 'select', options: ['Planning', 'Active', 'Review', 'Archived'] },
+          { label: 'Deadline', key: 'deadline', type: 'date' },
+          { label: 'Description', key: 'desc', type: 'textarea' }
+        ]}
+      />
+    </div>
+  );
+};
+
 const JobsView = ({ subCategory }: { subCategory?: string }) => {
   const [jobs, setJobs] = useState([
     { id: 1, title: 'Living Room Automation', status: 'In Progress', due: 'Tomorrow', notes: 'Finish wiring' },
@@ -740,7 +828,7 @@ const CRMDashboard = ({ searchQuery }: { searchQuery: string }) => {
     { id: 'people', label: 'People', icon: Users, sub: ['Employees', 'Customers', 'Suppliers', 'Contractors', 'Contacts'] },
     { id: 'quotes', label: 'Quotes', icon: FileText, sub: ['Open', 'Expired', 'Sent', 'Supplier Quotes'] },
     { id: 'jobs', label: 'Jobs', icon: Briefcase, sub: ['In Progress', 'Upcoming', 'Pending', 'Finished', 'Recurring'] },
-    { id: 'projects', label: 'Projects', icon: Folder, sub: ['Planning', 'In Progress', 'Review', 'Archived'] },
+    { id: 'projects', label: 'Projects', icon: Folder, sub: ['Planning', 'Active', 'Review', 'Archived'] },
     { id: 'schedules', label: 'Schedules', icon: CalendarIcon, sub: ['Calendar', 'Timeline', 'Shifts'] },
     { id: 'stock', label: 'Materials', icon: Package, sub: ['Stock', 'Orders', 'Suppliers'] },
     { id: 'payments', label: 'Payments', icon: CreditCard, sub: ['Upcoming', 'Pending', 'Due', 'Paid', 'Credits', 'Retentions'] },
@@ -774,6 +862,7 @@ const CRMDashboard = ({ searchQuery }: { searchQuery: string }) => {
       case 'people': return <PeopleView searchQuery={searchQuery} subCategory={subCategory} />;
       case 'quotes': return <QuotesView searchQuery={searchQuery} subCategory={subCategory} />;
       case 'jobs': return <JobsView subCategory={subCategory} />;
+      case 'projects': return <ProjectsView searchQuery={searchQuery} subCategory={subCategory} />;
       case 'schedules': return <CalendarView subCategory={subCategory} />;
       case 'stock': return <MaterialsView subCategory={subCategory} />;
       case 'payments': return <PaymentsView subCategory={subCategory} />;
@@ -1236,6 +1325,190 @@ const QuoteAutomation = () => {
   );
 };
 
+// --- Electrical Mapping ---
+const ElectricalMapping = () => {
+  const [activeTab, setActiveTab] = useState<'schedule' | 'visual' | 'mapping'>('visual');
+  const [circuits, setCircuits] = useState([
+    { slot: 1, pole: 'L1', breaker: 20, label: 'Kitchen GPO 1', load: 1200, devices: 4, type: '1P' },
+    { slot: 2, pole: 'L1', breaker: 16, label: 'Kitchen Lights', load: 450, devices: 12, type: '1P' },
+    { slot: 3, pole: 'L2', breaker: 20, label: 'Living Room Power', load: 800, devices: 6, type: '1P' },
+    { slot: 4, pole: 'L2', breaker: 16, label: 'Living Room Lights', load: 300, devices: 8, type: '1P' },
+    { slot: 5, pole: 'L3', breaker: 32, label: 'Induction Cooktop', load: 5400, devices: 1, type: '1P' },
+    { slot: 6, pole: 'L3', breaker: 25, label: 'Oven', load: 3200, devices: 1, type: '1P' },
+    { slot: 7, pole: 'L1', breaker: 10, label: 'Smoke Alarms', load: 50, devices: 5, type: '1P' },
+    { slot: 8, pole: 'L2', breaker: 20, label: 'Bedroom 1 Power', load: 600, devices: 4, type: '1P' },
+  ]);
+
+  const totalLoad = circuits.reduce((acc, c) => acc + c.load, 0);
+  const maxLoad = 15000; // Example max watts
+  const loadPercentage = Math.round((totalLoad / maxLoad) * 100);
+
+  return (
+    <div className="p-8 max-w-7xl mx-auto animate-in fade-in duration-500 space-y-8">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+           <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Electrical Mapping</h1>
+           <p className="text-slate-500 dark:text-slate-400 text-sm">Circuit schedule, load balancing, and device mapping.</p>
+        </div>
+        <div className="flex gap-3">
+          <button className="btn-secondary px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+            <Download size={18} /> Export Schedule
+          </button>
+          <button className="btn-primary px-4 py-2 bg-amber-500 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-amber-600 shadow-lg shadow-amber-500/20 transition-colors">
+            <Plus size={18} /> Add Circuit
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+            <div className="flex items-center gap-4 mb-4">
+               <div className="p-3 bg-amber-100 dark:bg-amber-900/20 text-amber-600 rounded-xl"><Zap size={24}/></div>
+               <div>
+                 <div className="text-sm text-slate-500 dark:text-slate-400 font-bold uppercase">Total Load</div>
+                 <div className="text-2xl font-bold text-slate-900 dark:text-white">{(totalLoad / 1000).toFixed(1)} kW</div>
+               </div>
+            </div>
+            <div className="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+               <div className={`h-full rounded-full ${loadPercentage > 80 ? 'bg-red-500' : 'bg-green-500'}`} style={{width: `${loadPercentage}%`}}></div>
+            </div>
+            <div className="mt-2 text-xs text-slate-500 text-right">{loadPercentage}% Capacity</div>
+         </div>
+
+         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+            <div className="flex items-center gap-4">
+               <div className="p-3 bg-blue-100 dark:bg-blue-900/20 text-blue-600 rounded-xl"><Activity size={24}/></div>
+               <div>
+                 <div className="text-sm text-slate-500 dark:text-slate-400 font-bold uppercase">Active Circuits</div>
+                 <div className="text-2xl font-bold text-slate-900 dark:text-white">{circuits.length}</div>
+               </div>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs font-bold text-slate-500">8 SP</span>
+              <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs font-bold text-slate-500">0 3P</span>
+            </div>
+         </div>
+
+         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
+            <div className="flex items-center gap-4">
+               <div className="p-3 bg-green-100 dark:bg-green-900/20 text-green-600 rounded-xl"><CheckCircle2 size={24}/></div>
+               <div>
+                 <div className="text-sm text-slate-500 dark:text-slate-400 font-bold uppercase">Compliance</div>
+                 <div className="text-2xl font-bold text-slate-900 dark:text-white">Pass</div>
+               </div>
+            </div>
+            <div className="mt-4 text-xs text-green-600 font-bold bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded w-fit">
+               NEC 2023 Compliant
+            </div>
+         </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
+        <button onClick={() => setActiveTab('visual')} className={`px-4 py-2 font-bold text-sm border-b-2 transition-colors ${activeTab === 'visual' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Visual Board</button>
+        <button onClick={() => setActiveTab('schedule')} className={`px-4 py-2 font-bold text-sm border-b-2 transition-colors ${activeTab === 'schedule' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Schedule List</button>
+        <button onClick={() => setActiveTab('mapping')} className={`px-4 py-2 font-bold text-sm border-b-2 transition-colors ${activeTab === 'mapping' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Device Mapping</button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+         {/* Visual Panel (Always visible or conditionally based on design choice, here conditional for tab focus) */}
+         {(activeTab === 'visual' || activeTab === 'mapping') && (
+           <div className="bg-slate-800 dark:bg-slate-900 rounded-2xl border-4 border-slate-300 dark:border-slate-700 p-4 shadow-2xl lg:col-span-1 h-fit">
+               <div className="text-center text-slate-400 text-xs font-bold uppercase mb-4 tracking-widest">Distribution Board 1</div>
+               <div className="bg-slate-900 dark:bg-black rounded-lg p-2 space-y-1 border border-slate-700 relative">
+                  {/* Main Switch */}
+                  <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-20 h-10 bg-red-600 rounded-t-lg border-x-2 border-t-2 border-red-800 flex items-center justify-center shadow-lg z-10">
+                    <span className="text-white text-[10px] font-bold">MAIN</span>
+                  </div>
+
+                  {/* Breakers Grid */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-4">
+                     {Array.from({length: 12}).map((_, i) => {
+                       const circuit = circuits.find(c => c.slot === i + 1);
+                       return (
+                         <div key={i} className="flex items-center gap-1 group cursor-pointer">
+                           <div className="text-[10px] text-slate-600 w-4 text-right">{i + 1}</div>
+                           <div className={`h-8 flex-1 rounded border-b-2 shadow-inner relative transition-all ${circuit ? 'bg-slate-700 border-slate-900 hover:bg-slate-600' : 'bg-slate-800 border-slate-950 opacity-50'}`}>
+                             {circuit && (
+                               <>
+                                 <div className={`absolute top-1 left-1 right-1 h-1 rounded-full ${circuit.load > (circuit.breaker * 100) ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                                 <div className="absolute center inset-0 flex items-center justify-center text-[9px] font-bold text-white">{circuit.breaker}A</div>
+                               </>
+                             )}
+                           </div>
+                         </div>
+                       )
+                     })}
+                  </div>
+               </div>
+               <div className="mt-4 p-3 bg-slate-700/50 rounded-lg border border-slate-600">
+                 <div className="text-xs text-slate-300 font-bold mb-2">Selected Circuit Details</div>
+                 <div className="text-xs text-slate-400">Click a breaker above to view connected devices and detailed load information.</div>
+               </div>
+           </div>
+         )}
+
+         {/* Right Content based on Tab */}
+         <div className={`${activeTab === 'schedule' ? 'lg:col-span-3' : 'lg:col-span-2'} bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col`}>
+             {activeTab === 'mapping' && (
+               <div className="p-6 flex-1 flex flex-col items-center justify-center text-center space-y-4">
+                  <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
+                    <Wrench className="text-slate-400 w-8 h-8" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Device Mapping Mode</h3>
+                  <p className="text-slate-500 max-w-md">Select a circuit on the left to highlight mapped devices on your floorplan. Drag devices from the unassigned list to a circuit to map them.</p>
+                  <button className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm">Open Floorplan Overlay</button>
+               </div>
+             )}
+
+             {activeTab !== 'mapping' && (
+               <>
+                 <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 font-bold text-sm text-slate-700 dark:text-slate-300 flex justify-between">
+                    <span>Panel Schedule</span>
+                    <span className="text-xs font-normal text-slate-500">DB-1 • 240V • 1 Phase</span>
+                 </div>
+                 <div className="overflow-auto flex-1">
+                   <table className="w-full text-left text-sm">
+                     <thead className="bg-slate-50 dark:bg-slate-900 text-xs uppercase text-slate-500 font-bold">
+                       <tr>
+                         <th className="p-3 pl-6 w-16">Slot</th>
+                         <th className="p-3 w-20">Amps</th>
+                         <th className="p-3">Description</th>
+                         <th className="p-3">Load (W)</th>
+                         <th className="p-3 text-right pr-6">Status</th>
+                       </tr>
+                     </thead>
+                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                       {circuits.map(c => (
+                         <tr key={c.slot} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
+                           <td className="p-3 pl-6 font-mono text-slate-400">#{c.slot}</td>
+                           <td className="p-3 font-bold">{c.breaker}A</td>
+                           <td className="p-3">
+                             <div className="font-medium text-slate-900 dark:text-white">{c.label}</div>
+                             <div className="text-xs text-slate-500">{c.devices} Devices Connected</div>
+                           </td>
+                           <td className="p-3 font-mono">{c.load}W</td>
+                           <td className="p-3 text-right pr-6">
+                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"><Edit2 size={14} className="text-slate-500"/></button>
+                                <button className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"><Trash2 size={14} className="text-red-500"/></button>
+                             </div>
+                           </td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
+                 </div>
+               </>
+             )}
+         </div>
+      </div>
+    </div>
+  );
+};
+
 // --- Admin Panel ---
 const AdminPanel = () => {
   const [users] = useState<User[]>([
@@ -1341,6 +1614,7 @@ export default function App() {
       case 'crm': return <CRMDashboard searchQuery={searchQuery} />;
       case 'quotes': return <QuoteAutomation />;
       case 'canvas': return <CanvasEditor project="Untitled Project" onClose={() => setCurrentView('dashboard')} />;
+      case 'mapping': return <ElectricalMapping />;
       case 'admin': return <AdminPanel />;
       case 'dashboard': return <Dashboard onNavigate={setCurrentView} />;
       default: return <Dashboard onNavigate={setCurrentView} />;
@@ -1353,7 +1627,6 @@ export default function App() {
         <div className="flex items-center gap-4">
           {currentView !== 'dashboard' && <button onClick={() => setCurrentView('dashboard')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 dark:text-slate-400 transition-colors"><ArrowLeft size={20} /></button>}
           <div className="flex items-center gap-3 group cursor-pointer" onClick={() => setCurrentView('dashboard')}>
-            <div className="w-9 h-9 bg-gradient-to-br from-green-600 to-green-700 rounded-xl flex items-center justify-center text-white shadow-lg shadow-green-600/20 group-hover:scale-105 transition-transform"><span className="font-bold text-sm">IL</span></div>
             <span className="font-bold text-lg tracking-tight text-slate-800 dark:text-white">Integratd Living</span>
           </div>
         </div>

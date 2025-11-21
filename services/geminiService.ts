@@ -12,13 +12,15 @@ const getAIClient = (): GoogleGenAI | null => {
 export const generateChatResponse = async (
   history: { role: string; parts: { text: string }[] }[],
   newMessage: string,
-  context: string = ""
+  context: string = "",
+  image?: { inlineData: { data: string; mimeType: string } }
 ): Promise<string> => {
   const ai = getAIClient();
   if (!ai) return "I'm sorry, but I'm not connected to the AI service right now. Please check your API key.";
 
   try {
-    const model = "gemini-2.5-flash"; // Using Flash for quick chat responses
+    // Using gemini-2.5-flash as it handles both text and images (multimodal) efficiently
+    const model = "gemini-2.5-flash"; 
     
     const systemInstruction = `You are Albert, an intelligent assistant for Integratd Living. 
     You help with CRM data, analyzing floorplans, quoting, and technical Loxone automation queries.
@@ -28,9 +30,17 @@ export const generateChatResponse = async (
     ${context ? context : "No specific app context loaded."}
     `;
 
+    const userParts: any[] = [{ text: newMessage }];
+    if (image) {
+        // The SDK expects inlineData directly, not wrapped in another inlineData if passing to parts?
+        // Actually, type definition for Part is { text: string } | { inlineData: { mimeType: string, data: string } }
+        // So passing 'image' which is { inlineData: ... } is correct if image structure matches { inlineData: ... }
+        userParts.push(image);
+    }
+
     const contents = [
         ...history.map(h => ({ role: h.role, parts: h.parts })),
-        { role: 'user', parts: [{ text: newMessage }] }
+        { role: 'user', parts: userParts }
     ];
 
     const response: GenerateContentResponse = await ai.models.generateContent({
@@ -44,7 +54,7 @@ export const generateChatResponse = async (
     return response.text || "I couldn't generate a response.";
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "I encountered an error processing your request.";
+    return "I encountered an error processing your request. Please try again.";
   }
 };
 

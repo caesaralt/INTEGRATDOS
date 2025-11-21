@@ -10,7 +10,9 @@ import {
   Import,
   Brain,
   Play,
-  Pause
+  Pause,
+  ImageIcon,
+  Trash2
 } from 'lucide-react';
 import { generateChatResponse } from '../services/geminiService';
 import { ChatMessage } from '../types';
@@ -45,8 +47,12 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
   const [isReasoningEnabled, setIsReasoningEnabled] = useState(false);
   const [animationsEnabled, setAnimationsEnabled] = useState(true);
   
+  // File Upload State
+  const [attachment, setAttachment] = useState<{ data: string, mimeType: string } | null>(null);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -66,12 +72,41 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleSend = async () => {
-    if (!input.trim()) return;
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        // Extract base64 data and mime type
+        const matches = base64String.match(/^data:(.+);base64,(.+)$/);
+        if (matches) {
+          setAttachment({
+            mimeType: matches[1],
+            data: matches[2]
+          });
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
-    const userMessage: ChatMessage = { role: 'user', text: input, timestamp: new Date() };
+  const handleSend = async () => {
+    if (!input.trim() && !attachment) return;
+
+    const userMessage: ChatMessage = { 
+        role: 'user', 
+        text: attachment ? `${input} [Attached Image]` : input, 
+        timestamp: new Date() 
+    };
+    
     setMessages(prev => [...prev, userMessage]);
     setInput('');
+    
+    // Capture current attachment and clear state
+    const currentAttachment = attachment;
+    setAttachment(null); 
+    
     setIsLoading(true);
 
     // Prepare context string
@@ -87,10 +122,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
       // Convert ChatMessage[] to the format expected by service (history)
       const history = messages.map(m => ({
         role: m.role,
-        parts: [{ text: m.text.replace('ALFRED: ', '') }] // Strip prefix for history
+        parts: [{ text: m.text.replace('ALFRED: ', '').replace(' [Attached Image]', '') }] 
       }));
 
-      const responseText = await generateChatResponse(history, input, contextString);
+      // Prepare image payload if exists
+      const imagePayload = currentAttachment ? { inlineData: currentAttachment } : undefined;
+      
+      const responseText = await generateChatResponse(history, input, contextString, imagePayload);
       
       const botMessage: ChatMessage = {
         role: 'model',
@@ -225,99 +263,91 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ isOpen, onClose, onMinimize, 
 
       {/* Input Area - Glassmorphism */}
       <div className="p-3 bg-black/40 backdrop-blur-xl border-t border-white/10 relative z-20">
-        {/* Active Context Badge */}
-        {selectedContext && (
-          <div className="absolute -top-8 left-4 px-3 py-1 bg-green-500/20 border border-green-500/30 backdrop-blur-md rounded-t-lg text-[10px] text-green-200 flex items-center gap-2 animate-in slide-in-from-bottom-2 shadow-lg">
-            <Database className="w-3 h-3" />
-            <span>{selectedContext}</span>
-            <button onClick={() => setSelectedContext(null)} className="hover:text-white ml-1"><X className="w-3 h-3" /></button>
+        {/* Attachment Preview */}
+        {attachment && (
+          <div className="absolute bottom-full left-0 mb-2 ml-2 p-2 bg-white/10 backdrop-blur-md rounded-lg border border-white/20 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
+            <div className="w-8 h-8 bg-white/10 rounded flex items-center justify-center">
+              <ImageIcon className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-xs text-white/70">Image Attached</span>
+            <button onClick={() => setAttachment(null)} className="p-1 hover:bg-white/20 rounded-full text-white/50 hover:text-white">
+              <X className="w-3 h-3" />
+            </button>
           </div>
         )}
 
         <div className="relative flex items-end gap-2">
-          {/* Context Import Button */}
-          <div className="relative" ref={contextMenuRef}>
-             <button 
-                onClick={() => setShowContextMenu(!showContextMenu)}
-                className={`p-2.5 rounded-xl transition-all border ${
-                  selectedContext 
-                    ? 'bg-green-500/30 border-green-400 text-green-200' 
-                    : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-400 hover:text-white'
-                }`}
-                title="Import Context from Modules"
-             >
-               {selectedContext ? <Check className="w-4 h-4" /> : <Import className="w-4 h-4" />}
-             </button>
+          <div className="flex-1 bg-white/5 border border-white/10 rounded-2xl flex items-center p-1 transition-all focus-within:bg-white/10 focus-within:border-green-500/30">
+            <button 
+              onClick={() => setShowContextMenu(!showContextMenu)}
+              className={`p-2 rounded-xl transition-colors ${selectedContext ? 'text-green-400 bg-green-400/10' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+              title="Add Context"
+            >
+              <Database className="w-5 h-5" />
+            </button>
+            
+            <input 
+              type="file" 
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              className="hidden" 
+              accept="image/*"
+            />
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className={`p-2 rounded-xl transition-colors ${attachment ? 'text-green-400 bg-green-400/10' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}
+              title="Attach Image"
+            >
+              <Paperclip className="w-5 h-5" />
+            </button>
 
-             {/* Context Menu Popup */}
-             {showContextMenu && (
-                <div className="absolute bottom-full left-0 mb-2 w-56 bg-[#0f172a] rounded-xl shadow-2xl border border-white/10 py-1 overflow-hidden z-50 animate-in zoom-in-95 duration-150">
-                   <div className="px-3 py-2 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-white/5 bg-white/5">
-                     Import Data From
-                   </div>
-                   <div className="max-h-60 overflow-y-auto scrollbar-thin">
-                     {MODULES.map((mod) => (
-                       <button
-                         key={mod.id}
-                         onClick={() => {
-                           setSelectedContext(mod.name);
-                           setShowContextMenu(false);
-                         }}
-                         className={`w-full px-4 py-2 text-xs text-left flex items-center gap-3 hover:bg-white/10 transition-colors ${
-                           selectedContext === mod.name ? 'text-green-400 bg-green-500/10 font-medium' : 'text-slate-400'
-                         }`}
-                       >
-                         <mod.icon className="w-3.5 h-3.5 opacity-70" />
-                         {mod.name}
-                       </button>
-                     ))}
-                   </div>
-                </div>
-             )}
-          </div>
-
-          {/* Attachments Button */}
-          <button className="p-2.5 text-slate-400 hover:text-white hover:bg-white/10 bg-white/5 border border-white/10 rounded-xl transition-colors" title="Upload PDF or Image">
-            <Paperclip className="w-4 h-4" />
-          </button>
-          
-          {/* Reasoning Toggle */}
-          <button 
-            onClick={() => setIsReasoningEnabled(!isReasoningEnabled)}
-            className={`p-2.5 rounded-xl transition-all border ${
-               isReasoningEnabled
-                 ? 'bg-pink-500/20 border-pink-500/50 text-pink-300 shadow-[0_0_10px_rgba(236,72,153,0.3)]'
-                 : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
-            }`}
-            title="Deep Reasoning (Think Harder)"
-          >
-            <Brain className="w-4 h-4" />
-          </button>
-
-          <div className="flex-1 relative">
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask ALFRED..."
+              placeholder={isReasoningEnabled ? "Ask deeply..." : "Ask ALFRED..."}
+              className="w-full bg-transparent border-none text-white placeholder-slate-500 px-3 py-2.5 focus:ring-0 resize-none h-[44px] max-h-[120px] scrollbar-hide text-sm"
               rows={1}
-              className="w-full pl-3 pr-10 py-2.5 bg-black/40 border border-white/10 rounded-xl focus:outline-none focus:border-green-500/50 focus:ring-1 focus:ring-green-500/50 transition-all text-sm text-white placeholder:text-white/20 resize-none scrollbar-none"
-              style={{ minHeight: '42px', maxHeight: '100px' }}
-              disabled={isLoading}
             />
-            <button
-              onClick={handleSend}
-              disabled={!input.trim() || isLoading}
-              className={`absolute right-1.5 bottom-1.5 p-1.5 rounded-lg transition-all ${
-                input.trim() && !isLoading
-                  ? 'bg-green-600 text-white hover:bg-green-500 shadow-lg shadow-green-500/20'
-                  : 'bg-transparent text-white/10 cursor-not-allowed'
-              }`}
-            >
-              <Send className="w-3.5 h-3.5" />
-            </button>
           </div>
+          
+          <button 
+            onClick={handleSend}
+            disabled={!input.trim() && !attachment}
+            className="p-3 bg-green-600 hover:bg-green-500 text-white rounded-2xl shadow-lg shadow-green-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
+          >
+            <Send className="w-5 h-5" />
+          </button>
         </div>
+
+        {/* Context Menu */}
+        {showContextMenu && (
+          <div ref={contextMenuRef} className="absolute bottom-full left-2 mb-2 w-56 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 z-30">
+             <div className="p-2 border-b border-white/5 text-xs font-bold text-slate-400 uppercase tracking-wider">Import Context</div>
+             <div className="max-h-48 overflow-y-auto py-1">
+               {MODULES.map((mod) => (
+                 <button
+                   key={mod.id}
+                   onClick={() => { setSelectedContext(mod.id); setShowContextMenu(false); }}
+                   className={`w-full px-3 py-2 text-left text-sm flex items-center gap-3 hover:bg-white/10 transition-colors ${selectedContext === mod.id ? 'text-green-400 bg-white/5' : 'text-slate-300'}`}
+                 >
+                   <mod.icon className="w-4 h-4" />
+                   {mod.name}
+                   {selectedContext === mod.id && <Check className="w-3 h-3 ml-auto" />}
+                 </button>
+               ))}
+             </div>
+             <div className="p-2 border-t border-white/5 bg-white/5">
+                <button 
+                  onClick={() => setIsReasoningEnabled(!isReasoningEnabled)}
+                  className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs font-bold transition-colors ${isReasoningEnabled ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' : 'text-slate-400 hover:text-white'}`}
+                >
+                  <Brain className="w-3.5 h-3.5" />
+                  Deep Reasoning {isReasoningEnabled ? 'ON' : 'OFF'}
+                </button>
+             </div>
+          </div>
+        )}
       </div>
     </div>
   );
