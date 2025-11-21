@@ -1,4 +1,4 @@
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Type } from "@google/genai";
 
 // Helper to check for API key
 const getAIClient = (): GoogleGenAI | null => {
@@ -35,7 +35,7 @@ export const generateChatResponse = async (
 
     const response: GenerateContentResponse = await ai.models.generateContent({
       model,
-      contents: contents as any, // Type assertion due to slight SDK type mismatch in some versions
+      contents: contents as any,
       config: {
         systemInstruction,
       }
@@ -48,34 +48,71 @@ export const generateChatResponse = async (
   }
 };
 
-export const analyzeFloorplan = async (base64Image: string, automationType: string): Promise<string> => {
+export const analyzeFloorplan = async (base64Image: string, automationType: string, tier: string): Promise<any> => {
   const ai = getAIClient();
-  if (!ai) return "AI Service Unavailable";
+  if (!ai) return null; // Return null to handle fallback in UI
 
   try {
-    const model = "gemini-3-pro-preview"; // Using Pro for complex vision analysis
+    const model = "gemini-3-pro-preview";
 
-    const prompt = `Analyze this floorplan image. We are installing a Loxone automation system.
-    Focus specifically on: ${automationType}.
-    1. Identify the rooms.
-    2. Suggest placement for ${automationType} sensors or devices.
-    3. Estimate the number of devices needed per room.
-    4. Provide a JSON summary of the estimated count.
+    const prompt = `Analyze this floorplan image for a home automation quote.
+    Project Tier: ${tier}.
+    Systems to include: ${automationType}.
+
+    1. Identify the rooms in the floorplan.
+    2. Based on the pricing tier and selected systems, determine the list of automation devices needed.
+    3. Estimate the quantity and unit cost for each item.
+    4. Estimate installation labor hours.
+
+    Output strictly valid JSON matching the schema.
     `;
+
+    // Clean base64 if needed
+    const cleanBase64 = base64Image.includes('base64,') ? base64Image.split('base64,')[1] : base64Image;
 
     const response = await ai.models.generateContent({
       model,
       contents: {
         parts: [
-            { inlineData: { mimeType: "image/png", data: base64Image } },
+            { inlineData: { mimeType: "image/png", data: cleanBase64 } },
             { text: prompt }
         ]
+      },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            detectedRooms: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING }
+            },
+            breakdown: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  item: { type: Type.STRING },
+                  quantity: { type: Type.NUMBER },
+                  total: { type: Type.NUMBER }
+                }
+              }
+            },
+            laborHours: { type: Type.NUMBER },
+            laborCost: { type: Type.NUMBER },
+            subtotal: { type: Type.NUMBER },
+            grandTotal: { type: Type.NUMBER }
+          }
+        }
       }
     });
 
-    return response.text || "Analysis failed.";
+    const text = response.text;
+    if (!text) return null;
+    return JSON.parse(text);
+
   } catch (error) {
     console.error("Gemini Vision Error:", error);
-    return "Error analyzing floorplan.";
+    return null;
   }
 };

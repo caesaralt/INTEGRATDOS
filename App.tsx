@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
@@ -68,10 +67,13 @@ import {
   Layers,
   Grid,
   Eye,
-  FileDown
+  FileDown,
+  ImageIcon,
+  Calculator
 } from 'lucide-react';
 import AIAssistant from './components/AIAssistant';
 import { User, UserRole, CanvasItem } from './types';
+import { analyzeFloorplan } from './services/geminiService';
 
 // --- Types ---
 type ViewState = 'dashboard' | 'crm' | 'quotes' | 'canvas' | 'mapping' | 'board' | 'cad' | 'learning' | 'ops' | 'admin';
@@ -1050,21 +1052,86 @@ const QuoteAutomation = () => {
   const [projectName, setProjectName] = useState('');
   const [pricingTier, setPricingTier] = useState<'Basic' | 'Premium' | 'Deluxe'>('Basic');
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
+  const [uploadedFile, setUploadedFile] = useState<string | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleType = (id: string) => {
     setSelectedTypes(prev => prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]);
   };
 
-  const startAnalysis = () => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedFile(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUploadClick = () => {
+    // Explicitly trigger the input click
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleStandardQuote = () => {
+    // Simulate instant calculation based on tier
+    const multiplier = pricingTier === 'Deluxe' ? 2.5 : pricingTier === 'Premium' ? 1.5 : 1;
+    const mockResult = {
+      detectedRooms: ['Detected Zone A', 'Detected Zone B'],
+      breakdown: [
+        { item: 'Standard Controller', quantity: 1, unitPrice: 500 * multiplier, total: 500 * multiplier },
+        { item: 'Generic Sensors', quantity: 5, unitPrice: 100, total: 500 },
+        { item: 'Basic Switches', quantity: 8, unitPrice: 80, total: 640 }
+      ],
+      laborHours: 10,
+      laborCost: 1200,
+      subtotal: (500 * multiplier) + 1140,
+      grandTotal: ((500 * multiplier) + 1140) + 1200
+    };
+    setAnalysisResult(mockResult);
+    setStep('results');
+  };
+
+  const handleAIAnalysis = async () => {
     setStep('analyzing');
-    // Simulate AI Delay
-    setTimeout(() => {
-      setStep('results');
-    }, 2500);
+    
+    if (uploadedFile) {
+      const result = await analyzeFloorplan(uploadedFile, selectedTypes.join(','), pricingTier);
+      if (result && typeof result !== 'string') {
+          setAnalysisResult(result);
+      } else {
+          // Fallback
+          handleStandardQuote(); 
+      }
+    } else {
+      // Fallback if no file
+      handleStandardQuote();
+    }
+    
+    // Ensure analyzing state is visible for a moment
+    if (!uploadedFile) {
+        setTimeout(() => setStep('results'), 2000);
+    } else {
+        setStep('results');
+    }
   };
 
   return (
     <div className="max-w-5xl mx-auto p-6 animate-in slide-in-from-bottom-4 duration-500">
+      {/* Hidden Input outside of clickable areas to avoid event bubbling issues */}
+      <input 
+        type="file" 
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="image/*,.pdf"
+        className="hidden"
+      />
+
       <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
         
         {/* Header */}
@@ -1099,12 +1166,27 @@ const QuoteAutomation = () => {
                 </div>
                 
                 {/* Upload Area */}
-                <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-12 text-center hover:border-green-500/50 transition-colors cursor-pointer bg-slate-50 dark:bg-slate-900/50">
-                   <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-full shadow-sm flex items-center justify-center mx-auto mb-4">
-                     <UploadCloud className="w-8 h-8 text-green-600" />
-                   </div>
-                   <h3 className="font-bold text-slate-900 dark:text-white mb-1">Drop your floor plan here, or browse</h3>
-                   <p className="text-sm text-slate-500">PDF files only (max 10MB)</p>
+                <div 
+                  onClick={handleUploadClick}
+                  className={`border-2 border-dashed rounded-2xl p-12 text-center hover:border-green-500/50 transition-colors cursor-pointer relative overflow-hidden ${uploadedFile ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50'}`}
+                >
+                   {uploadedFile ? (
+                     <div className="relative z-10 pointer-events-none">
+                        <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-full shadow-sm flex items-center justify-center mx-auto mb-4">
+                          <ImageIcon className="w-8 h-8 text-green-600" />
+                        </div>
+                        <h3 className="font-bold text-slate-900 dark:text-white mb-1">File Uploaded</h3>
+                        <p className="text-sm text-green-600 dark:text-green-400 font-medium">Ready for analysis</p>
+                     </div>
+                   ) : (
+                     <div className="pointer-events-none">
+                        <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-full shadow-sm flex items-center justify-center mx-auto mb-4">
+                          <UploadCloud className="w-8 h-8 text-green-600" />
+                        </div>
+                        <h3 className="font-bold text-slate-900 dark:text-white mb-1">Drop your floor plan here, or browse</h3>
+                        <p className="text-sm text-slate-500">PDF, PNG, JPG (max 10MB)</p>
+                     </div>
+                   )}
                 </div>
 
                 <div>
@@ -1129,7 +1211,11 @@ const QuoteAutomation = () => {
                   </div>
                 </div>
                 <div className="flex justify-end">
-                  <button onClick={() => setStep('pricing')} disabled={!projectName} className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-600/20 disabled:opacity-50 disabled:cursor-not-allowed">
+                  <button 
+                    onClick={() => setStep('pricing')} 
+                    disabled={!projectName || !uploadedFile} 
+                    className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
                     Next Step
                   </button>
                 </div>
@@ -1159,17 +1245,29 @@ const QuoteAutomation = () => {
                       </button>
                     ))}
                  </div>
-                 <div className="flex justify-between">
+                 <div className="flex justify-between items-center pt-4">
                    <button onClick={() => setStep('details')} className="px-6 py-3 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-bold">Back</button>
-                   <button onClick={startAnalysis} className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg flex items-center gap-2">
-                     <Sparkles size={18} /> Generate Quote
-                   </button>
+                   
+                   <div className="flex gap-4">
+                     <button 
+                        onClick={handleStandardQuote} 
+                        className="px-6 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-white rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2"
+                     >
+                       <Calculator size={18} /> Standard Quote
+                     </button>
+                     <button 
+                        onClick={handleAIAnalysis} 
+                        className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-600/20 flex items-center gap-2"
+                     >
+                       <Sparkles size={18} /> AI Analysis
+                     </button>
+                   </div>
                  </div>
               </div>
             )}
 
             {/* Step 4: Results */}
-            {step === 'results' && (
+            {step === 'results' && analysisResult && (
               <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800">
@@ -1177,34 +1275,41 @@ const QuoteAutomation = () => {
                      <div className="font-bold text-slate-900 dark:text-white text-lg">{projectName}</div>
                    </div>
                    <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-100 dark:border-purple-800">
-                     <div className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase mb-1">Tier</div>
-                     <div className="font-bold text-slate-900 dark:text-white text-lg">{pricingTier}</div>
+                     <div className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase mb-1">Rooms Detected</div>
+                     <div className="font-bold text-slate-900 dark:text-white text-lg">{analysisResult.detectedRooms.length} Rooms</div>
                    </div>
                    <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl border border-orange-100 dark:border-orange-800">
-                     <div className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase mb-1">Analysis Method</div>
-                     <div className="font-bold text-slate-900 dark:text-white text-lg flex items-center gap-2"><Brain size={16} /> AI Vision</div>
+                     <div className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase mb-1">Est. Labor</div>
+                     <div className="font-bold text-slate-900 dark:text-white text-lg flex items-center gap-2"><Clock size={16} /> {analysisResult.laborHours} Hours</div>
                    </div>
                 </div>
 
                 {/* Cost Breakdown */}
                 <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
                   <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold flex items-center gap-2">
-                    <FileText size={18} /> Cost Breakdown
+                    <FileText size={18} /> Cost Breakdown ({pricingTier})
                   </div>
                   <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {['Lighting Control (4 Zones)', 'Smart Switches (8x)', 'Presence Sensors (5x)', 'Central Controller (1x)', 'Installation Labor (12h)'].map((item, i) => (
+                    {analysisResult.breakdown.map((item: any, i: number) => (
                       <div key={i} className="flex justify-between p-4 hover:bg-white dark:hover:bg-slate-800/50 transition-colors">
-                        <span className="text-slate-600 dark:text-slate-300">{item}</span>
-                        <span className="font-bold text-slate-900 dark:text-white">${(Math.random() * 1000 + 200).toFixed(2)}</span>
+                        <div className="flex items-center gap-3">
+                          <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold">{item.quantity}</span>
+                          <span className="text-slate-600 dark:text-slate-300">{item.item}</span>
+                        </div>
+                        <span className="font-bold text-slate-900 dark:text-white">${item.total.toLocaleString()}</span>
                       </div>
                     ))}
                     <div className="flex justify-between p-4 bg-slate-100 dark:bg-slate-800/50 font-bold text-lg">
-                      <span>Subtotal</span>
-                      <span>$4,850.00</span>
+                      <span>Subtotal (Hardware)</span>
+                      <span>${analysisResult.subtotal?.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between p-4 bg-slate-100 dark:bg-slate-800/50 font-bold text-lg text-slate-600 dark:text-slate-400">
+                      <span>Estimated Labor</span>
+                      <span>${analysisResult.laborCost?.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between p-6 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-100 text-2xl font-bold border-t border-green-200 dark:border-green-900">
                       <span>GRAND TOTAL</span>
-                      <span>$5,820.00</span>
+                      <span>${analysisResult.grandTotal?.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
@@ -1230,20 +1335,20 @@ const QuoteAutomation = () => {
           <div className="p-24 flex flex-col items-center justify-center text-center animate-in zoom-in duration-500">
             <div className="w-24 h-24 border-4 border-green-100 dark:border-green-900 rounded-full border-t-green-500 animate-spin mb-8"></div>
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Analyzing Floorplan...</h2>
-            <p className="text-slate-500 mb-8">Identifying rooms, measuring areas, and calculating {pricingTier} tier requirements.</p>
+            <p className="text-slate-500 mb-8">Using Gemini Vision to identify layout and requirements.</p>
             
             <div className="space-y-3 w-full max-w-md text-left">
                <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300 animate-pulse delay-0">
                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                 <span>Vision Analysis: Identifying walls and openings...</span>
+                 <span>Processing image data...</span>
                </div>
                <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300 animate-pulse delay-150">
                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                 <span>Component Mapping: Placing {selectedTypes.join(', ')} sensors...</span>
+                 <span>Identifying rooms and zones...</span>
                </div>
                <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300 animate-pulse delay-300">
                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                 <span>Cost Estimation: Applying {pricingTier} pricing logic...</span>
+                 <span>Calculating {pricingTier} tier requirements...</span>
                </div>
             </div>
           </div>
