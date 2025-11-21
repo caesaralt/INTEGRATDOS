@@ -66,7 +66,9 @@ import {
   Save,
   Share2,
   Layers,
-  Grid
+  Grid,
+  Eye,
+  FileDown
 } from 'lucide-react';
 import AIAssistant from './components/AIAssistant';
 import { User, UserRole, CanvasItem } from './types';
@@ -520,10 +522,6 @@ const QuotesView = ({ searchQuery, subCategory }: { searchQuery: string, subCate
   );
 };
 
-// ... JobsView, CalendarView, MaterialsView kept similar but with updated Add Buttons logic invoking ItemModal ...
-// For brevity I will skip full re-implementation of identical logic for Jobs/Calendar/Materials unless specifically requested, 
-// but assume they now use `ItemModal` similar to PeopleView.
-
 const JobsView = ({ subCategory }: { subCategory?: string }) => {
   const [jobs, setJobs] = useState([
     { id: 1, title: 'Living Room Automation', status: 'In Progress', due: 'Tomorrow', notes: 'Finish wiring' },
@@ -734,7 +732,7 @@ const CRMDashboard = ({ searchQuery }: { searchQuery: string }) => {
     { id: 'projects', label: 'Projects', icon: Folder, sub: ['Planning', 'In Progress', 'Review', 'Archived'] },
     { id: 'schedules', label: 'Schedules', icon: CalendarIcon, sub: ['Calendar', 'Timeline', 'Shifts'] },
     { id: 'stock', label: 'Materials', icon: Package, sub: ['Stock', 'Orders', 'Suppliers'] },
-    { id: 'payments', label: 'Payments', icon: CreditCard, sub: ['Upcoming', 'Pending', 'Due', 'Paid', 'Credits', 'Retentions'] }, // Removed 'To Us', 'To Suppliers'
+    { id: 'payments', label: 'Payments', icon: CreditCard, sub: ['Upcoming', 'Pending', 'Due', 'Paid', 'Credits', 'Retentions'] },
   ];
 
   const handleNavClick = (viewId: string, sub?: string) => {
@@ -803,8 +801,10 @@ const CRMDashboard = ({ searchQuery }: { searchQuery: string }) => {
                   <div className="flex items-center gap-3"><item.icon className="w-4 h-4 opacity-70 group-hover:opacity-100" /><span className="text-sm">{item.label}</span></div>
                   <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-50 -translate-x-2 group-hover:translate-x-0 transition-all" />
                 </button>
-                <div className="absolute left-full top-0 ml-2 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1 hidden group-hover:block animate-in fade-in slide-in-from-left-1 duration-200 z-[60]">
-                   <div className="absolute -left-3 top-0 w-4 h-full bg-transparent"></div>
+                {/* Bridge to prevent mousegap */}
+                <div className="absolute left-full top-0 h-full w-4 bg-transparent"></div>
+                
+                <div className="absolute left-[calc(100%+8px)] top-0 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1 hidden group-hover:block animate-in fade-in slide-in-from-left-1 duration-200 z-[60]">
                    <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-800 mb-1">{item.label}</div>
                    {item.sub.map((subItem) => (
                      <button key={subItem} onClick={(e) => { e.stopPropagation(); handleNavClick(item.id, subItem); }} className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-between">
@@ -826,7 +826,7 @@ const CRMDashboard = ({ searchQuery }: { searchQuery: string }) => {
   );
 };
 
-const CanvasEditor = ({ project, onClose }: { project: string, onClose: () => void }) => {
+const CanvasEditor = ({ project, onClose }: { project: string, onClose?: () => void }) => {
   const [items, setItems] = useState<CanvasItem[]>([]);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
@@ -884,9 +884,11 @@ const CanvasEditor = ({ project, onClose }: { project: string, onClose: () => vo
       {/* Top Bar */}
       <div className="h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 shadow-sm shrink-0">
         <div className="flex items-center gap-4">
-           <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
-             <ArrowLeft size={18} />
-           </button>
+           {onClose && (
+             <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
+               <ArrowLeft size={18} />
+             </button>
+           )}
            <div>
              <h2 className="font-bold text-sm">{project}</h2>
              <div className="text-xs text-slate-500">Canvas Editor v2.0</div>
@@ -1044,125 +1046,208 @@ const CanvasEditor = ({ project, onClose }: { project: string, onClose: () => vo
 };
 
 const QuoteAutomation = () => {
-  const [step, setStep] = useState<'details' | 'pricing' | 'analysis'>('details');
+  const [step, setStep] = useState<'details' | 'pricing' | 'analyzing' | 'results'>('details');
   const [projectName, setProjectName] = useState('');
   const [pricingTier, setPricingTier] = useState<'Basic' | 'Premium' | 'Deluxe'>('Basic');
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [showCanvas, setShowCanvas] = useState(false);
 
   const toggleType = (id: string) => {
     setSelectedTypes(prev => prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]);
   };
 
-  if (showCanvas) {
-    return <CanvasEditor project={projectName || 'Untitled Project'} onClose={() => setShowCanvas(false)} />;
-  }
+  const startAnalysis = () => {
+    setStep('analyzing');
+    // Simulate AI Delay
+    setTimeout(() => {
+      setStep('results');
+    }, 2500);
+  };
 
   return (
     <div className="max-w-5xl mx-auto p-6 animate-in slide-in-from-bottom-4 duration-500">
       <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
-        <div className="p-8 border-b border-slate-100 dark:border-slate-700">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-2xl flex items-center justify-center text-green-600 dark:text-green-400">
-              <FileText size={24} />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-white">AI Floor Plan Analysis</h2>
-              <p className="text-slate-500 dark:text-slate-400 text-sm">Step {step === 'details' ? '1' : step === 'pricing' ? '2' : '3'} of 3</p>
-            </div>
-          </div>
-
-          {/* Steps */}
-          {step === 'details' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Project Name</label>
-                <input 
-                  type="text" 
-                  value={projectName}
-                  onChange={(e) => setProjectName(e.target.value)}
-                  placeholder="Enter your project name"
-                  className="w-full px-4 py-3.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-green-500"
-                />
+        
+        {/* Header */}
+        {step !== 'analyzing' && (
+          <div className="p-8 border-b border-slate-100 dark:border-slate-700">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-2xl flex items-center justify-center text-green-600 dark:text-green-400">
+                <FileText size={24} />
               </div>
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Automation Types</label>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {['lighting', 'shading', 'security', 'climate', 'audio'].map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => toggleType(type)}
-                      className={`flex items-center gap-3 p-4 rounded-xl border capitalize transition-all ${
-                        selectedTypes.includes(type) 
-                          ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-900 dark:text-green-100' 
-                          : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-white'
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded border flex items-center justify-center ${selectedTypes.includes(type) ? 'bg-green-500 border-green-500' : 'border-slate-300'}`}>
-                        {selectedTypes.includes(type) && <CheckSquare className="text-white w-3 h-3" />}
-                      </div>
-                      {type}
-                    </button>
-                  ))}
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-white">AI Floor Plan Analysis</h2>
+                <p className="text-slate-500 dark:text-slate-400 text-sm">
+                  {step === 'details' ? 'Step 1 of 3: Project Details' : 
+                   step === 'pricing' ? 'Step 2 of 3: Select Tier' : 
+                   'Analysis Complete'}
+                </p>
+              </div>
+            </div>
+
+            {/* Step 1: Details */}
+            {step === 'details' && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Project Name</label>
+                  <input 
+                    type="text" 
+                    value={projectName}
+                    onChange={(e) => setProjectName(e.target.value)}
+                    placeholder="Enter your project name"
+                    className="w-full px-4 py-3.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+                
+                {/* Upload Area */}
+                <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl p-12 text-center hover:border-green-500/50 transition-colors cursor-pointer bg-slate-50 dark:bg-slate-900/50">
+                   <div className="w-16 h-16 bg-white dark:bg-slate-800 rounded-full shadow-sm flex items-center justify-center mx-auto mb-4">
+                     <UploadCloud className="w-8 h-8 text-green-600" />
+                   </div>
+                   <h3 className="font-bold text-slate-900 dark:text-white mb-1">Drop your floor plan here, or browse</h3>
+                   <p className="text-sm text-slate-500">PDF files only (max 10MB)</p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Automation Types</label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {['lighting', 'shading', 'security', 'climate', 'audio'].map((type) => (
+                      <button
+                        key={type}
+                        onClick={() => toggleType(type)}
+                        className={`flex items-center gap-3 p-4 rounded-xl border capitalize transition-all ${
+                          selectedTypes.includes(type) 
+                            ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-900 dark:text-green-100' 
+                            : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-white'
+                        }`}
+                      >
+                        <div className={`w-5 h-5 rounded border flex items-center justify-center ${selectedTypes.includes(type) ? 'bg-green-500 border-green-500' : 'border-slate-300'}`}>
+                          {selectedTypes.includes(type) && <CheckSquare className="text-white w-3 h-3" />}
+                        </div>
+                        {type}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <button onClick={() => setStep('pricing')} disabled={!projectName} className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-600/20 disabled:opacity-50 disabled:cursor-not-allowed">
+                    Next Step
+                  </button>
                 </div>
               </div>
-              <div className="flex justify-end">
-                <button onClick={() => setStep('pricing')} className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-600/20">
-                  Next Step
-                </button>
+            )}
+
+            {/* Step 2: Pricing Tier */}
+            {step === 'pricing' && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300">
+                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">Select Pricing Tier</h3>
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {['Basic', 'Premium', 'Deluxe'].map((tier) => (
+                      <button
+                        key={tier}
+                        onClick={() => setPricingTier(tier as any)}
+                        className={`p-6 rounded-2xl border-2 text-left transition-all hover:shadow-lg ${
+                          pricingTier === tier 
+                            ? 'border-green-500 bg-green-50 dark:bg-green-900/10 ring-1 ring-green-500' 
+                            : 'border-slate-200 dark:border-slate-700 hover:border-green-300'
+                        }`}
+                      >
+                        <div className="text-lg font-bold text-slate-900 dark:text-white mb-2">{tier}</div>
+                        <p className="text-sm text-slate-500 mb-4">Standard components and basic automation logic.</p>
+                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${pricingTier === tier ? 'border-green-500 bg-green-500' : 'border-slate-300'}`}>
+                          {pricingTier === tier && <CheckSquare className="w-3 h-3 text-white" />}
+                        </div>
+                      </button>
+                    ))}
+                 </div>
+                 <div className="flex justify-between">
+                   <button onClick={() => setStep('details')} className="px-6 py-3 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-bold">Back</button>
+                   <button onClick={startAnalysis} className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg flex items-center gap-2">
+                     <Sparkles size={18} /> Generate Quote
+                   </button>
+                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {step === 'pricing' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300">
-               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Select Pricing Tier</h3>
-               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  {['Basic', 'Premium', 'Deluxe'].map((tier) => (
-                    <button
-                      key={tier}
-                      onClick={() => setPricingTier(tier as any)}
-                      className={`p-6 rounded-2xl border-2 text-left transition-all hover:shadow-lg ${
-                        pricingTier === tier 
-                          ? 'border-green-500 bg-green-50 dark:bg-green-900/10 ring-1 ring-green-500' 
-                          : 'border-slate-200 dark:border-slate-700 hover:border-green-300'
-                      }`}
-                    >
-                      <div className="text-lg font-bold text-slate-900 dark:text-white mb-2">{tier}</div>
-                      <p className="text-sm text-slate-500 mb-4">Standard components and basic automation logic.</p>
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${pricingTier === tier ? 'border-green-500 bg-green-500' : 'border-slate-300'}`}>
-                        {pricingTier === tier && <CheckSquare className="w-3 h-3 text-white" />}
+            {/* Step 4: Results */}
+            {step === 'results' && (
+              <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                   <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800">
+                     <div className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase mb-1">Project</div>
+                     <div className="font-bold text-slate-900 dark:text-white text-lg">{projectName}</div>
+                   </div>
+                   <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-100 dark:border-purple-800">
+                     <div className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase mb-1">Tier</div>
+                     <div className="font-bold text-slate-900 dark:text-white text-lg">{pricingTier}</div>
+                   </div>
+                   <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl border border-orange-100 dark:border-orange-800">
+                     <div className="text-xs font-bold text-orange-600 dark:text-orange-400 uppercase mb-1">Analysis Method</div>
+                     <div className="font-bold text-slate-900 dark:text-white text-lg flex items-center gap-2"><Brain size={16} /> AI Vision</div>
+                   </div>
+                </div>
+
+                {/* Cost Breakdown */}
+                <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
+                  <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold flex items-center gap-2">
+                    <FileText size={18} /> Cost Breakdown
+                  </div>
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {['Lighting Control (4 Zones)', 'Smart Switches (8x)', 'Presence Sensors (5x)', 'Central Controller (1x)', 'Installation Labor (12h)'].map((item, i) => (
+                      <div key={i} className="flex justify-between p-4 hover:bg-white dark:hover:bg-slate-800/50 transition-colors">
+                        <span className="text-slate-600 dark:text-slate-300">{item}</span>
+                        <span className="font-bold text-slate-900 dark:text-white">${(Math.random() * 1000 + 200).toFixed(2)}</span>
                       </div>
-                    </button>
-                  ))}
+                    ))}
+                    <div className="flex justify-between p-4 bg-slate-100 dark:bg-slate-800/50 font-bold text-lg">
+                      <span>Subtotal</span>
+                      <span>$4,850.00</span>
+                    </div>
+                    <div className="flex justify-between p-6 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-100 text-2xl font-bold border-t border-green-200 dark:border-green-900">
+                      <span>GRAND TOTAL</span>
+                      <span>$5,820.00</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-800">
+                   <button onClick={() => setStep('details')} className="text-slate-400 hover:text-slate-600 text-sm">Start New Quote</button>
+                   <div className="flex gap-3">
+                      <button className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg flex items-center gap-2">
+                        <FileDown size={18} /> Export PDF
+                      </button>
+                      <button className="px-6 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-white rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700">
+                        Save to CRM
+                      </button>
+                   </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step 3: Analyzing State */}
+        {step === 'analyzing' && (
+          <div className="p-24 flex flex-col items-center justify-center text-center animate-in zoom-in duration-500">
+            <div className="w-24 h-24 border-4 border-green-100 dark:border-green-900 rounded-full border-t-green-500 animate-spin mb-8"></div>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Analyzing Floorplan...</h2>
+            <p className="text-slate-500 mb-8">Identifying rooms, measuring areas, and calculating {pricingTier} tier requirements.</p>
+            
+            <div className="space-y-3 w-full max-w-md text-left">
+               <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300 animate-pulse delay-0">
+                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                 <span>Vision Analysis: Identifying walls and openings...</span>
                </div>
-               <div className="flex justify-between">
-                 <button onClick={() => setStep('details')} className="px-6 py-3 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl font-bold">Back</button>
-                 <button onClick={() => setStep('analysis')} className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg">Next Step</button>
+               <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300 animate-pulse delay-150">
+                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                 <span>Component Mapping: Placing {selectedTypes.join(', ')} sensors...</span>
+               </div>
+               <div className="flex items-center gap-3 text-slate-600 dark:text-slate-300 animate-pulse delay-300">
+                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                 <span>Cost Estimation: Applying {pricingTier} pricing logic...</span>
                </div>
             </div>
-          )}
-
-          {step === 'analysis' && (
-             <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300 text-center py-8">
-               <div className="mx-auto w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6">
-                 <UploadCloud size={40} className="text-slate-400" />
-               </div>
-               <h3 className="text-xl font-bold text-slate-900 dark:text-white">Ready to Analyze</h3>
-               <p className="text-slate-500 max-w-md mx-auto">We will analyze the floorplan based on your selected <strong>{pricingTier}</strong> tier and <strong>{selectedTypes.length}</strong> automation types.</p>
-               
-               <div className="flex justify-center gap-4 pt-4">
-                  <button onClick={() => setShowCanvas(true)} className="px-8 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-white rounded-xl font-bold hover:bg-slate-50 transition-colors">
-                    Manual Editor
-                  </button>
-                  <button onClick={() => setShowCanvas(true)} className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg flex items-center gap-2">
-                    <Sparkles size={18} /> AI Analysis
-                  </button>
-               </div>
-               <button onClick={() => setStep('pricing')} className="text-slate-400 text-sm hover:text-slate-600 mt-4">Back to settings</button>
-             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1434,6 +1519,7 @@ export default function App() {
     switch(currentView) {
       case 'crm': return <CRMDashboard searchQuery={searchQuery} />;
       case 'quotes': return <QuoteAutomation />;
+      case 'canvas': return <CanvasEditor project="Untitled Project" onClose={() => setCurrentView('dashboard')} />;
       case 'admin': return <AdminPanel />;
       case 'dashboard': return <Dashboard onNavigate={setCurrentView} />;
       default: 
