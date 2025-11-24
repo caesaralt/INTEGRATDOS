@@ -2394,26 +2394,9 @@ const App = () => {
             
             {/* User Profile / Switcher for Demo */}
             <div className="flex items-center gap-3 pl-3 border-l border-slate-200 dark:border-slate-700">
-              <div className="text-right hidden sm:block">
-                <div className="text-sm font-bold text-slate-900 dark:text-white">{currentUser.name}</div>
-                <div className="text-xs text-slate-500">{currentUser.role}</div>
-              </div>
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold shadow-lg">
                 {currentUser.name.charAt(0)}
               </div>
-              
-              {/* Quick Role Switcher for Testing */}
-              <div className="flex flex-col gap-1 ml-2">
-                 <button onClick={() => {
-                    setCurrentUser({ ...currentUser, role: UserRole.ADMIN, name: 'Admin', permissions: AVAILABLE_MODULES.map(m => ({ module: m.permission, access: true })).concat([{ module: 'admin', access: true }]) });
-                    setCurrentView('dashboard');
-                 }} className="text-[10px] bg-slate-200 px-1 rounded hover:bg-slate-300">Admin</button>
-                 <button onClick={() => {
-                    setCurrentUser({ ...currentUser, role: UserRole.TECHNICIAN, name: 'Tech', permissions: AVAILABLE_MODULES.map(m => ({ module: m.permission, access: ['crm', 'canvas', 'mapping', 'cad'].includes(m.id) })) });
-                    setCurrentView('dashboard');
-                 }} className="text-[10px] bg-slate-200 px-1 rounded hover:bg-slate-300">Tech</button>
-              </div>
-
               <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors">
                  <LogOut size={18} />
               </button>
