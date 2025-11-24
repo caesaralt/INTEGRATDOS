@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
@@ -91,7 +92,9 @@ import {
   ShoppingCart,
   Link,
   Loader,
-  Sliders
+  Sliders,
+  ChevronLeft,
+  Bot
 } from 'lucide-react';
 import AIAssistant from './components/AIAssistant';
 import { User, UserRole, CanvasItem } from './types';
@@ -161,6 +164,7 @@ const SYMBOLS = [
   { id: 'shade', label: 'Shade', icon: Blinds, cost: 450, color: 'bg-orange-500' },
   { id: 'speaker', label: 'Speaker', icon: Speaker, cost: 250, color: 'bg-purple-500' },
   { id: 'cam', label: 'Camera', icon: Lock, cost: 350, color: 'bg-red-500' },
+  { id: 'thermo', label: 'Thermostat', icon: Thermometer, cost: 200, color: 'bg-red-400' },
 ];
 
 // --- Loxone Components for Board Builder ---
@@ -341,8 +345,6 @@ const ItemModal = ({ isOpen, onClose, title, fields, onSave, initialData }: any)
   );
 };
 
-// --- Components ---
-
 const GenericCRMList = ({ title, type, icon: Icon }: { title: string, type: string, icon: any }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -381,122 +383,432 @@ const GenericCRMList = ({ title, type, icon: Icon }: { title: string, type: stri
   );
 };
 
-const QuoteAutomation = () => {
+const QuoteAutomation = ({ onSaveToCRM }: { onSaveToCRM: (data: any) => void }) => {
+  // --- STATE FOR WIZARD & EDITOR ---
+  const [step, setStep] = useState<'setup' | 'editor'>('setup');
+  
+  // Setup State
+  const [projectName, setProjectName] = useState('');
+  const [automationTypes, setAutomationTypes] = useState({
+    lighting: false,
+    shading: false,
+    security: false,
+    climate: false,
+    audio: false
+  });
+  const [pricingTier, setPricingTier] = useState('Standard');
+  const [skipAI, setSkipAI] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+
+  // Editor State
+  const [items, setItems] = useState<CanvasItem[]>([]);
+  const [zoom, setZoom] = useState(1);
+  const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [showResult, setShowResult] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleUpload = () => {
-    setIsAnalyzing(true);
-    setTimeout(() => {
+  // --- ACTIONS ---
+
+  // Handle File Upload in Setup
+  const handleSetupFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setUploadedImage(reader.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Generate Quote -> Transition to Editor
+  const handleGenerateQuote = () => {
+    if (!projectName) {
+      alert("Please enter a project name.");
+      return;
+    }
+    if (!uploadedImage) {
+      alert("Please upload a floor plan PDF or Image.");
+      return;
+    }
+
+    setStep('editor');
+    
+    // Trigger "AI" Analysis simulation based on selections
+    if (!skipAI) {
+      setIsAnalyzing(true);
+      setTimeout(() => {
+        simulateAIPlacement();
         setIsAnalyzing(false);
-        setShowResult(true);
-    }, 2000);
+      }, 2000);
+    }
   };
 
-  const handleDownload = () => {
-    alert("Starting PDF download for 'Smith Residence Quote.pdf'...");
+  const simulateAIPlacement = () => {
+    const newItems: CanvasItem[] = [];
+    
+    // Add items based on selected automation types
+    if (automationTypes.lighting) {
+      for(let i=0; i<5; i++) newItems.push(createRandomItem('light'));
+      for(let i=0; i<3; i++) newItems.push(createRandomItem('sensor')); // Presence sensors usually go with lighting
+    }
+    if (automationTypes.shading) {
+      for(let i=0; i<4; i++) newItems.push(createRandomItem('shade'));
+    }
+    if (automationTypes.security) {
+      for(let i=0; i<3; i++) newItems.push(createRandomItem('cam'));
+    }
+    if (automationTypes.climate) {
+      for(let i=0; i<3; i++) newItems.push(createRandomItem('thermo'));
+    }
+    if (automationTypes.audio) {
+      for(let i=0; i<4; i++) newItems.push(createRandomItem('speaker'));
+    }
+
+    // Default items if nothing selected but not skipped (fallback)
+    if (newItems.length === 0 && !skipAI) {
+       newItems.push(createRandomItem('light'));
+    }
+
+    setItems(newItems);
   };
 
-  const handleRecentClick = (id: number) => {
-      setShowResult(true);
-      // In a real app, load data by ID
+  const createRandomItem = (typeId: string) => {
+    const symbol = SYMBOLS.find(s => s.id === typeId) || SYMBOLS[0];
+    return {
+      ...symbol,
+      uid: Date.now() + Math.random(),
+      type: typeId,
+      x: 100 + Math.random() * 500,
+      y: 100 + Math.random() * 400,
+    } as CanvasItem;
   };
 
-  return (
-    <div className="p-8 animate-in fade-in slide-in-from-bottom-4 duration-500 h-full flex flex-col relative">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h2 className="text-3xl font-bold text-slate-900 dark:text-white">Quote Automation</h2>
-          <p className="text-slate-500 dark:text-slate-400">AI-Powered Floorplan Analysis & Estimation</p>
-        </div>
-        <button onClick={handleUpload} disabled={isAnalyzing} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2">
-          {isAnalyzing ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <UploadCloud size={20} />}
-          {isAnalyzing ? 'Analyzing...' : 'Upload Plan'}
-        </button>
-      </div>
+  // Editor Actions
+  const handleDragStart = (e: React.DragEvent, uid: number) => {
+    e.dataTransfer.setData('uid', uid.toString());
+  };
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-8 min-h-0">
-        <div 
-          className="bg-slate-100 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center p-8 text-center hover:border-blue-500 transition-colors cursor-pointer group relative overflow-hidden"
-          onClick={handleUpload}
-        >
-          {showResult && (
-             <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-10">
-                 <div className="bg-white dark:bg-slate-800 p-2 rounded-lg shadow-xl">
-                    <img src="https://images.unsplash.com/photo-1556912998-c57cc6b63cd7?auto=format&fit=crop&w=800&q=80" alt="Analyzed" className="w-full h-full object-cover rounded opacity-80" />
-                 </div>
+  const handleDrop = (e: React.DragEvent) => {
+     e.preventDefault();
+     const rect = containerRef.current?.getBoundingClientRect();
+     if (!rect) return;
+     
+     const x = (e.clientX - rect.left) / zoom;
+     const y = (e.clientY - rect.top) / zoom;
+     
+     const movedUid = e.dataTransfer.getData('uid');
+     if (movedUid) {
+         setItems(prev => prev.map(item => item.uid === Number(movedUid) ? { ...item, x, y } : item));
+     }
+  };
+
+  const handleCanvasClick = (e: React.MouseEvent) => {
+      if (selectedTool) {
+          const rect = containerRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          const x = (e.clientX - rect.left) / zoom;
+          const y = (e.clientY - rect.top) / zoom;
+          
+          const symbol = SYMBOLS.find(s => s.id === selectedTool);
+          if (symbol) {
+              setItems(prev => [...prev, { ...symbol, uid: Date.now(), x, y } as CanvasItem]);
+              setSelectedTool(null);
+          }
+      }
+  };
+
+  const calculateTotal = () => items.reduce((sum, item) => sum + item.cost, 0);
+
+  const handleSave = () => {
+     const quoteData = {
+         id: `Q-${Date.now()}`,
+         projectName,
+         items,
+         total: calculateTotal(),
+         date: new Date().toISOString().split('T')[0],
+         status: 'Pending',
+         image: uploadedImage,
+         pricingTier
+     };
+     onSaveToCRM(quoteData);
+     alert("Quote and Floorplan saved to CRM!");
+  };
+
+  // --- RENDER STEP 1: SETUP ---
+  if (step === 'setup') {
+    return (
+      <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 animate-in fade-in p-8 overflow-y-auto">
+         {/* Info Banner */}
+         <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl p-4 flex items-start gap-3 mb-8">
+            <div className="bg-blue-100 dark:bg-blue-800 p-2 rounded-full text-blue-600 dark:text-blue-300 shrink-0 mt-0.5">
+               <Bot size={20} />
+            </div>
+            <div>
+               <h3 className="font-bold text-blue-800 dark:text-blue-200 text-sm">How it works</h3>
+               <p className="text-sm text-blue-600 dark:text-blue-300/80 mt-1">
+                 Upload a floor plan PDF or image, select the automation types you want to include, and our AI will analyze the layout and generate an accurate quote instantly. You can then fine-tune the quote in the editor.
+               </p>
+            </div>
+         </div>
+
+         <div className="max-w-4xl mx-auto w-full bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+             <div className="p-8 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-green-100 dark:bg-green-900/20 text-green-600 flex items-center justify-center">
+                   <Brain size={24} />
+                </div>
+                <div>
+                   <h2 className="text-2xl font-bold text-slate-900 dark:text-white">AI Floor Plan Analysis</h2>
+                   <p className="text-slate-500 dark:text-slate-400 text-sm">Configure your project parameters</p>
+                </div>
              </div>
-          )}
-          <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-transform">
-            <UploadCloud size={32} className="text-blue-500" />
-          </div>
-          <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200">Drop Floorplan Here</h3>
-          <p className="text-slate-500 text-sm mt-2 max-w-xs">Supports PDF, PNG, JPG. Our AI will automatically detect rooms and suggest devices.</p>
+             
+             <div className="p-8 space-y-8">
+                {/* Project Name */}
+                <div>
+                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Project Name</label>
+                   <input 
+                     type="text" 
+                     value={projectName}
+                     onChange={(e) => setProjectName(e.target.value)}
+                     placeholder="Enter your project name"
+                     className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-green-500 transition-all text-slate-900 dark:text-white"
+                   />
+                </div>
+
+                {/* File Upload */}
+                <div>
+                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Floor Plan PDF</label>
+                   <div 
+                     onClick={() => fileInputRef.current?.click()}
+                     className={`w-full h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer transition-all ${uploadedImage ? 'border-green-500 bg-green-50 dark:bg-green-900/10' : 'border-slate-300 dark:border-slate-600 hover:border-green-500 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                   >
+                      {uploadedImage ? (
+                        <div className="flex flex-col items-center text-green-600">
+                           <CheckCircle2 size={40} className="mb-2" />
+                           <span className="font-bold">File Uploaded Successfully</span>
+                           <span className="text-xs mt-1">Click to change</span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center text-slate-400">
+                           <UploadCloud size={40} className="mb-4" />
+                           <span className="font-bold text-slate-600 dark:text-slate-300">Drop your floor plan here, or <span className="text-green-600">browse</span></span>
+                           <span className="text-xs mt-2">PDF, PNG, JPG files only (max 10MB)</span>
+                        </div>
+                      )}
+                      <input ref={fileInputRef} type="file" accept="image/*,.pdf" className="hidden" onChange={handleSetupFile} />
+                   </div>
+                </div>
+
+                {/* Automation Types */}
+                <div>
+                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Select Automation Types</label>
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <label className={`p-4 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${automationTypes.lighting ? 'border-green-500 bg-green-50 dark:bg-green-900/10' : 'border-slate-200 dark:border-slate-700 hover:border-green-300'}`}>
+                         <input type="checkbox" checked={automationTypes.lighting} onChange={(e) => setAutomationTypes({...automationTypes, lighting: e.target.checked})} className="w-5 h-5 text-green-600 rounded focus:ring-green-500" />
+                         <Lightbulb size={20} className="text-yellow-500" />
+                         <span className="font-medium text-slate-700 dark:text-slate-200">Lighting Control</span>
+                      </label>
+                      <label className={`p-4 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${automationTypes.shading ? 'border-green-500 bg-green-50 dark:bg-green-900/10' : 'border-slate-200 dark:border-slate-700 hover:border-green-300'}`}>
+                         <input type="checkbox" checked={automationTypes.shading} onChange={(e) => setAutomationTypes({...automationTypes, shading: e.target.checked})} className="w-5 h-5 text-green-600 rounded focus:ring-green-500" />
+                         <Blinds size={20} className="text-orange-500" />
+                         <span className="font-medium text-slate-700 dark:text-slate-200">Shading Control</span>
+                      </label>
+                      <label className={`p-4 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${automationTypes.security ? 'border-green-500 bg-green-50 dark:bg-green-900/10' : 'border-slate-200 dark:border-slate-700 hover:border-green-300'}`}>
+                         <input type="checkbox" checked={automationTypes.security} onChange={(e) => setAutomationTypes({...automationTypes, security: e.target.checked})} className="w-5 h-5 text-green-600 rounded focus:ring-green-500" />
+                         <Lock size={20} className="text-red-500" />
+                         <span className="font-medium text-slate-700 dark:text-slate-200">Security & Access</span>
+                      </label>
+                      <label className={`p-4 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${automationTypes.climate ? 'border-green-500 bg-green-50 dark:bg-green-900/10' : 'border-slate-200 dark:border-slate-700 hover:border-green-300'}`}>
+                         <input type="checkbox" checked={automationTypes.climate} onChange={(e) => setAutomationTypes({...automationTypes, climate: e.target.checked})} className="w-5 h-5 text-green-600 rounded focus:ring-green-500" />
+                         <Thermometer size={20} className="text-blue-500" />
+                         <span className="font-medium text-slate-700 dark:text-slate-200">Climate Control</span>
+                      </label>
+                      <label className={`p-4 rounded-xl border flex items-center gap-3 cursor-pointer transition-all ${automationTypes.audio ? 'border-green-500 bg-green-50 dark:bg-green-900/10' : 'border-slate-200 dark:border-slate-700 hover:border-green-300'}`}>
+                         <input type="checkbox" checked={automationTypes.audio} onChange={(e) => setAutomationTypes({...automationTypes, audio: e.target.checked})} className="w-5 h-5 text-green-600 rounded focus:ring-green-500" />
+                         <Speaker size={20} className="text-purple-500" />
+                         <span className="font-medium text-slate-700 dark:text-slate-200">Audio System</span>
+                      </label>
+                   </div>
+                </div>
+
+                {/* Pricing Tier */}
+                <div>
+                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Pricing Tier</label>
+                   <select 
+                      value={pricingTier}
+                      onChange={(e) => setPricingTier(e.target.value)}
+                      className="w-full p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-green-500 text-slate-900 dark:text-white"
+                   >
+                      <option>Basic - Standard Components</option>
+                      <option>Standard - Smart Components</option>
+                      <option>Premium - Luxury Finishes & Advanced Logic</option>
+                   </select>
+                </div>
+
+                {/* Skip AI */}
+                <div className="bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 rounded-xl p-4 flex gap-3">
+                   <div className="pt-0.5">
+                      <input type="checkbox" checked={skipAI} onChange={(e) => setSkipAI(e.target.checked)} className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500" />
+                   </div>
+                   <div>
+                      <h4 className="font-bold text-slate-800 dark:text-white text-sm">Skip AI Analysis - Manual Symbol Placement</h4>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Check this box to skip AI floor plan analysis and use random symbol placement based on selected automation types and package tier. This will be faster but less accurate.</p>
+                   </div>
+                </div>
+             </div>
+
+             <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700">
+                <button 
+                   onClick={handleGenerateQuote}
+                   className="w-full py-4 bg-green-700 hover:bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg shadow-green-900/20 transition-all flex items-center justify-center gap-2"
+                >
+                   <Zap className="fill-current" /> Generate Quote
+                </button>
+             </div>
+         </div>
+      </div>
+    );
+  }
+
+  // --- RENDER STEP 2: EDITOR (Existing Logic) ---
+  return (
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 animate-in fade-in">
+        {/* Top Bar */}
+        <div className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between px-6 shrink-0 z-20">
+            <div className="flex items-center gap-4">
+               <button onClick={() => setStep('setup')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500">
+                  <ArrowLeft size={20} />
+               </button>
+               <div>
+                   <h2 className="text-lg font-bold text-slate-900 dark:text-white">{projectName}</h2>
+                   <p className="text-xs text-slate-500">{pricingTier} Tier • {Object.keys(automationTypes).filter(k => (automationTypes as any)[k]).length} Systems</p>
+               </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
+                 <button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg shadow-blue-600/20 transition-all">
+                     <Save size={16} /> Save to CRM
+                 </button>
+            </div>
         </div>
 
-        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 flex flex-col h-full">
-           <h3 className="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-             <FileText size={20} className="text-blue-500" /> 
-             {showResult ? 'Generated Quote' : 'Recent Quotes'}
-           </h3>
-           
-           {showResult ? (
-              <div className="flex-1 animate-in fade-in slide-in-from-right-4">
-                  <div className="flex justify-between items-end mb-6 pb-4 border-b border-slate-100 dark:border-slate-700">
-                      <div>
-                          <div className="text-2xl font-bold text-slate-900 dark:text-white">$15,420.00</div>
-                          <div className="text-sm text-green-500 font-bold">Premium Tier • Loxone</div>
-                      </div>
-                      <button onClick={handleDownload} className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg font-bold text-sm hover:opacity-90 transition-opacity">Download PDF</button>
-                  </div>
-                  <div className="space-y-4">
-                      <div className="flex justify-between items-center text-sm">
-                          <span className="text-slate-500">Miniserver & Extensions</span>
-                          <span className="font-bold text-slate-700 dark:text-slate-200">$2,450.00</span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm">
-                          <span className="text-slate-500">Lighting (24 Circuits)</span>
-                          <span className="font-bold text-slate-700 dark:text-slate-200">$4,200.00</span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm">
-                          <span className="text-slate-500">Shading (8 Blinds)</span>
-                          <span className="font-bold text-slate-700 dark:text-slate-200">$3,600.00</span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm">
-                          <span className="text-slate-500">Audio (4 Zones)</span>
-                          <span className="font-bold text-slate-700 dark:text-slate-200">$1,800.00</span>
-                      </div>
-                      <div className="flex justify-between items-center text-sm">
-                          <span className="text-slate-500">Labor (32 Hours)</span>
-                          <span className="font-bold text-slate-700 dark:text-slate-200">$3,370.00</span>
-                      </div>
-                  </div>
-                  <div className="mt-8 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
-                      <strong>AI Analysis:</strong> Based on the floorplan, we detected 3 bedrooms, an open plan living area, and 2 bathrooms. The recommended configuration includes presence sensors in all transit areas and touch switches at main entry points.
-                  </div>
-              </div>
-           ) : (
-              <div className="space-y-3 flex-1 overflow-y-auto">
-                {[1,2,3].map(i => (
-                  <div 
-                    key={i} 
-                    onClick={() => handleRecentClick(i)}
-                    className="p-4 rounded-xl bg-slate-50 dark:bg-slate-700/30 border border-slate-100 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                        <span className="font-bold text-slate-700 dark:text-slate-200">Smith Residence</span>
-                        <span className="text-xs font-bold px-2 py-1 rounded bg-green-100 text-green-700">Approved</span>
-                    </div>
-                    <div className="flex justify-between text-sm text-slate-500">
-                        <span>Oct 24, 2024</span>
-                        <span>$12,450.00</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-           )}
+        <div className="flex-1 flex overflow-hidden">
+            {/* Left Sidebar: Breakdown & Tools */}
+            <div className="w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-10 shadow-xl">
+                 <div className="flex-1 overflow-y-auto p-4">
+                     <div className="mb-6">
+                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Symbol Toolbox</h3>
+                         <div className="grid grid-cols-2 gap-2">
+                             {SYMBOLS.map(sym => (
+                                 <button 
+                                   key={sym.id}
+                                   onClick={() => setSelectedTool(selectedTool === sym.id ? null : sym.id)}
+                                   className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${selectedTool === sym.id ? 'bg-blue-50 border-blue-500 ring-1 ring-blue-500' : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-blue-400'}`}
+                                 >
+                                     <div className={`p-2 rounded-full ${sym.color} text-white`}>
+                                         <sym.icon size={16} />
+                                     </div>
+                                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{sym.label}</span>
+                                     <span className="text-[10px] text-slate-500">${sym.cost}</span>
+                                 </button>
+                             ))}
+                         </div>
+                     </div>
+
+                     <div className="border-t border-slate-100 dark:border-slate-800 pt-6">
+                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Quote Breakdown</h3>
+                         <div className="space-y-2">
+                             {items.length === 0 && <p className="text-sm text-slate-400 italic text-center py-4">No items added yet.</p>}
+                             {Object.values(items.reduce((acc: any, item) => {
+                                 if (!acc[item.label]) acc[item.label] = { ...item, count: 0, totalCost: 0 };
+                                 acc[item.label].count++;
+                                 acc[item.label].totalCost += item.cost;
+                                 return acc;
+                             }, {})).map((group: any) => (
+                                 <div key={group.label} className="flex justify-between items-center text-sm p-2 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                                     <div className="flex items-center gap-2">
+                                         <span className="font-bold text-slate-700 dark:text-slate-200">{group.count}x</span>
+                                         <span className="text-slate-600 dark:text-slate-400">{group.label}</span>
+                                     </div>
+                                     <span className="font-mono text-slate-700 dark:text-slate-200">${group.totalCost}</span>
+                                 </div>
+                             ))}
+                         </div>
+                     </div>
+                 </div>
+
+                 <div className="p-6 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800">
+                     <div className="flex justify-between items-end mb-1">
+                         <span className="text-sm text-slate-500 font-medium">Total Estimate</span>
+                         <span className="text-2xl font-bold text-slate-900 dark:text-white">${calculateTotal().toLocaleString()}</span>
+                     </div>
+                 </div>
+            </div>
+
+            {/* Main Canvas Area */}
+            <div className="flex-1 bg-slate-200 dark:bg-black/40 relative overflow-hidden flex flex-col">
+                 <div className="absolute top-4 right-4 z-20 flex bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 p-1">
+                    <button onClick={() => setZoom(prev => Math.min(prev + 0.1, 2))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"><ZoomIn size={18}/></button>
+                    <button onClick={() => setZoom(prev => Math.max(prev - 0.1, 0.5))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"><ZoomOut size={18}/></button>
+                 </div>
+
+                 <div className="flex-1 overflow-auto flex items-center justify-center p-8 cursor-crosshair" onClick={handleCanvasClick}>
+                     <div 
+                       ref={containerRef}
+                       className="relative shadow-2xl transition-transform duration-200 bg-white"
+                       style={{ transform: `scale(${zoom})`, minWidth: uploadedImage ? 'auto' : '800px', minHeight: uploadedImage ? 'auto' : '600px' }}
+                       onDragOver={(e) => e.preventDefault()}
+                       onDrop={handleDrop}
+                     >
+                         {uploadedImage ? (
+                             <img src={uploadedImage} alt="Floorplan" className="max-w-none pointer-events-none select-none" />
+                         ) : (
+                             <div className="w-[800px] h-[600px] bg-white dark:bg-slate-900 flex flex-col items-center justify-center text-slate-300 dark:text-slate-700">
+                                 <Grid size={64} className="mb-4 opacity-50" />
+                                 <p className="text-lg font-medium">No floorplan loaded</p>
+                             </div>
+                         )}
+
+                         {/* Render Items */}
+                         {items.map(item => (
+                             <div
+                               key={item.uid}
+                               draggable
+                               onDragStart={(e) => handleDragStart(e, item.uid)}
+                               onClick={(e) => { e.stopPropagation(); /* Prevent canvas click */ }}
+                               style={{ left: item.x, top: item.y }}
+                               className={`absolute -translate-x-1/2 -translate-y-1/2 p-2 rounded-full shadow-lg cursor-move active:scale-110 hover:ring-2 hover:ring-white transition-all group z-10 ${item.color} text-white`}
+                             >
+                                 {/* @ts-ignore */}
+                                 <item.icon size={20} />
+                                 
+                                 {/* Tooltip / Delete Action */}
+                                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                     {item.label} (${item.cost})
+                                 </div>
+                                 <button 
+                                   onClick={(e) => { e.stopPropagation(); setItems(prev => prev.filter(i => i.uid !== item.uid)); }}
+                                   className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm hover:scale-110"
+                                 >
+                                    <X size={10} />
+                                 </button>
+                             </div>
+                         ))}
+                         
+                         {/* Loading Overlay */}
+                         {isAnalyzing && (
+                             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-30">
+                                 <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl flex flex-col items-center animate-in zoom-in-95">
+                                     <Brain size={48} className="text-purple-500 mb-4 animate-pulse" />
+                                     <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">AI Analyzing Layout</h3>
+                                     <p className="text-slate-500 text-sm">Detecting rooms and placing sensors...</p>
+                                 </div>
+                             </div>
+                         )}
+                     </div>
+                 </div>
+            </div>
         </div>
-      </div>
     </div>
   );
 };
@@ -589,6 +901,7 @@ const CanvasEditor = () => {
                     style={{ left: item.x, top: item.y }}
                     className={`absolute -translate-x-1/2 -translate-y-1/2 p-2 rounded shadow-lg cursor-move active:scale-110 transition-transform hover:ring-2 ring-blue-500 ${item.color} text-white`}
                   >
+                     {/* @ts-ignore */}
                      <item.icon size={20} />
                   </div>
                ))}
@@ -895,25 +1208,6 @@ const CalendarView = () => {
     </div>
   );
 };
-
-// Helper for Calendar
-function ChevronLeft({ size }: { size: number }) {
-  return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width={size} 
-      height={size} 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-    >
-      <path d="m15 18-6-6 6-6"/>
-    </svg>
-  );
-}
 
 const ProjectsView = () => {
   const [projects, setProjects] = useState([
@@ -1635,6 +1929,10 @@ const App = () => {
     }
   ]);
 
+  // Global Lists for "Database" Simulation
+  const [savedQuotes, setSavedQuotes] = useState<any[]>([]);
+  const [crmProjects, setCrmProjects] = useState<any[]>([]);
+
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
@@ -1656,6 +1954,26 @@ const App = () => {
   const handleLogout = () => {
     alert("Logged out successfully.");
     // In real app, clear token and redirect
+  };
+  
+  const handleSaveQuoteToCRM = (quoteData: any) => {
+      // 1. Save to Quotes List
+      setSavedQuotes(prev => [...prev, quoteData]);
+      
+      // 2. Create/Update Project in CRM
+      // For simplicity, we create a new project with the same name
+      const newProject = {
+          id: `PRJ-${Date.now().toString().slice(-4)}`,
+          name: quoteData.projectName,
+          client: 'New Client', // Placeholder
+          status: 'Planning',
+          deadline: new Date(Date.now() + 7776000000).toISOString().split('T')[0], // +90 days
+          progress: 10
+      };
+      
+      // This is local state for demo purposes, would be passed to ProjectsView if lifted or using context
+      console.log("Saved Quote:", quoteData);
+      console.log("Created Project:", newProject);
   };
 
   const toggleCategory = (category: string) => {
@@ -1855,7 +2173,7 @@ const App = () => {
     switch (currentView) {
       case 'mapping': return <ElectricalMapping onBack={() => setCurrentView('dashboard')} />;
       case 'board': return <BoardBuilder onBack={() => setCurrentView('dashboard')} />;
-      case 'quotes': return <QuoteAutomation />;
+      case 'quotes': return <QuoteAutomation onSaveToCRM={handleSaveQuoteToCRM} />;
       case 'canvas': return <CanvasEditor />;
       case 'ops': return <OperationsBoard />;
       case 'cad': return <ElectricalCAD />;

@@ -36,11 +36,14 @@ export interface Quote {
 
 export interface CanvasItem {
   id: string;
-  type: 'lighting' | 'shading' | 'security' | 'climate' | 'audio';
+  uid: number;
+  type?: string;
   x: number;
   y: number;
   label: string;
   cost: number;
+  color?: string;
+  icon?: any;
   rotation?: number;
   scale?: number;
   selected?: boolean;
