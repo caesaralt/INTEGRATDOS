@@ -27,6 +27,8 @@ import {
   Moon,
   Sun,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Briefcase,
   Folder,
   Calendar as CalendarIcon,
@@ -70,7 +72,26 @@ import {
   FileDown,
   ImageIcon,
   Calculator,
-  Wrench
+  Wrench,
+  Shield,
+  Key,
+  History,
+  Check,
+  Import,
+  MessageSquare,
+  Video,
+  BookOpen,
+  Award,
+  Type,
+  UserCheck,
+  Send,
+  CalendarDays,
+  PauseCircle,
+  Repeat,
+  ShoppingCart,
+  Link,
+  Loader,
+  Sliders
 } from 'lucide-react';
 import AIAssistant from './components/AIAssistant';
 import { User, UserRole, CanvasItem } from './types';
@@ -79,7 +100,61 @@ import { analyzeFloorplan } from './services/geminiService';
 // --- Types ---
 type ViewState = 'dashboard' | 'crm' | 'quotes' | 'canvas' | 'mapping' | 'board' | 'cad' | 'learning' | 'ops' | 'admin';
 
+// Updated CRM View State to match requested structure
+type CRMViewState = 
+  | 'overview' 
+  // People
+  | 'employees' | 'clients' | 'suppliers' | 'contractors' | 'contacts'
+  // Quotes
+  | 'quotes_open' | 'quotes_sent' | 'quotes_expired' | 'quotes_supplier'
+  // Jobs
+  | 'jobs_progress' | 'jobs_upcoming' | 'jobs_pending' | 'jobs_finished' | 'jobs_recurring'
+  // Schedules
+  | 'calendar'
+  // Materials
+  | 'inventory' | 'orders'
+  // Payments
+  | 'payments_suppliers' | 'payments_us'
+  // System
+  | 'integrations' | 'settings';
+
 // --- Constants ---
+const AVAILABLE_MODULES = [
+  { id: 'crm', title: 'CRM Dashboard', icon: LayoutDashboard, desc: 'Manage customers, projects, scheduling, inventory, and more.', color: 'text-blue-600 bg-blue-600', permission: 'crm' },
+  { id: 'quotes', title: 'Quote Automation', icon: FileText, desc: 'AI-powered quote generation from floorplans.', color: 'text-yellow-600 bg-yellow-600', permission: 'quotes' },
+  { id: 'canvas', title: 'Canvas Editor', icon: PenTool, desc: 'Professional floor plan editor with symbol management.', color: 'text-orange-600 bg-orange-600', permission: 'canvas' },
+  { id: 'mapping', title: 'Electrical Mapping', icon: Zap, desc: 'Circuit mapping and load calculation.', color: 'text-amber-500 bg-amber-500', permission: 'mapping' },
+  { id: 'board', title: 'Loxone Board Builder', icon: Cpu, desc: 'Design Loxone cabinet layouts.', color: 'text-slate-700 bg-slate-700', permission: 'board_builder' },
+  { id: 'cad', title: 'Electrical CAD', icon: Settings, desc: 'Schematic design and DXF export.', color: 'text-emerald-700 bg-emerald-700', permission: 'electrical_cad' },
+  { id: 'learning', title: 'AI Learning', icon: Brain, desc: 'System training and knowledge base.', color: 'text-pink-600 bg-pink-600', permission: 'learning' },
+  { id: 'ops', title: 'Operations Board', icon: ClipboardList, desc: 'Kanban project tracking.', color: 'text-indigo-600 bg-indigo-600', permission: 'kanban' },
+  { id: 'admin', title: 'Admin Panel', icon: Users, desc: 'User and permission management.', color: 'text-cyan-600 bg-cyan-600', permission: 'admin' },
+];
+
+const PERMISSION_KEYS = [
+  { key: 'admin', label: 'Admin Panel', desc: 'admin' },
+  { key: 'crm', label: 'CRM Dashboard', desc: 'crm' },
+  { key: 'quotes', label: 'Quote Automation', desc: 'quotes' },
+  { key: 'canvas', label: 'Canvas Editor', desc: 'canvas' },
+  { key: 'mapping', label: 'Electrical Mapping', desc: 'mapping' },
+  { key: 'board_builder', label: 'Board Builder', desc: 'board_builder' },
+  { key: 'electrical_cad', label: 'Electrical CAD', desc: 'electrical_cad' },
+  { key: 'learning', label: 'AI Learning', desc: 'learning' },
+  { key: 'kanban', label: 'Operations Board', desc: 'kanban' },
+];
+
+const CRM_SUB_PERMISSIONS = [
+  { key: 'crm_calendar', label: 'Calendar' },
+  { key: 'crm_communications', label: 'Communications' },
+  { key: 'crm_customers', label: 'Customers' },
+  { key: 'crm_inventory', label: 'Inventory' },
+  { key: 'crm_projects', label: 'Projects' },
+  { key: 'crm_reports', label: 'Reports & Analytics' },
+  { key: 'crm_stock', label: 'Stock Management' },
+  { key: 'crm_suppliers', label: 'Suppliers' },
+  { key: 'crm_technicians', label: 'Technicians' },
+];
+
 const SYMBOLS = [
   { id: 'light', label: 'Light', icon: Lightbulb, cost: 120, color: 'bg-yellow-500' },
   { id: 'sensor', label: 'Sensor', icon: Zap, cost: 180, color: 'bg-blue-500' },
@@ -88,11 +163,50 @@ const SYMBOLS = [
   { id: 'cam', label: 'Camera', icon: Lock, cost: 350, color: 'bg-red-500' },
 ];
 
-// --- Helper Components ---
+// --- Loxone Components for Board Builder ---
+interface LoxoneComponent {
+  id: string;
+  name: string;
+  type: 'controller' | 'extension' | 'power' | 'accessory';
+  width: number; // in TE units
+  power: number; // in Watts
+  color: string;
+}
 
-// Generic Modal for CRM Items
+const LOXONE_CATALOG: LoxoneComponent[] = [
+  { id: 'miniserver', name: 'Miniserver Gen2', type: 'controller', width: 9, power: 2.4, color: 'bg-green-600' },
+  { id: 'miniserver_compact', name: 'Miniserver Compact', type: 'controller', width: 6, power: 2.1, color: 'bg-green-600' },
+  { id: 'relay_ext', name: 'Relay Extension', type: 'extension', width: 9, power: 3.5, color: 'bg-slate-700' },
+  { id: 'dimmer_ext', name: 'Dimmer Extension', type: 'extension', width: 9, power: 3.5, color: 'bg-slate-700' },
+  { id: 'di_ext', name: 'DI Extension', type: 'extension', width: 2, power: 0.9, color: 'bg-slate-600' },
+  { id: 'ai_ext', name: 'AI Extension', type: 'extension', width: 2, power: 0.9, color: 'bg-slate-600' },
+  { id: 'tree_ext', name: 'Tree Extension', type: 'extension', width: 2, power: 0.6, color: 'bg-green-700' },
+  { id: 'air_base', name: 'Air Base Extension', type: 'extension', width: 2, power: 0.6, color: 'bg-green-700' },
+  { id: 'psu_10a', name: 'Power Supply 10A', type: 'power', width: 6, power: 15, color: 'bg-slate-800' },
+  { id: 'psu_4a', name: 'Power Supply 4A', type: 'power', width: 3, power: 8, color: 'bg-slate-800' },
+];
+
+// --- Shared Modal Component ---
 const ItemModal = ({ isOpen, onClose, title, fields, onSave, initialData }: any) => {
   if (!isOpen) return null;
+  
+  const [formData, setFormData] = useState(initialData || {});
+  const [activeTab, setActiveTab] = useState('details');
+
+  useEffect(() => {
+    setFormData(initialData || {});
+  }, [initialData, isOpen]);
+
+  const handleChange = (key: string, value: any) => {
+    setFormData((prev: any) => ({ ...prev, [key]: value }));
+  };
+
+  const linkOptions = [
+    { type: 'Project', items: ['PRJ-001: Smith Residence', 'PRJ-002: Downtown Loft'] },
+    { type: 'Customer', items: ['John Smith', 'Sarah Connor', 'TechCorp Inc.'] },
+    { type: 'Quote', items: ['Q-1001: Lighting Upgrade', 'Q-1002: Full Automation'] },
+    { type: 'Supplier', items: ['Loxone US', 'DigiKey', 'Rexel'] },
+  ];
   
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] animate-in fade-in duration-200">
@@ -103,57 +217,552 @@ const ItemModal = ({ isOpen, onClose, title, fields, onSave, initialData }: any)
             <X size={20} className="text-slate-500" />
           </button>
         </div>
+
+        {/* Modal Tabs */}
+        <div className="flex border-b border-slate-100 dark:border-slate-800 px-6">
+           <button 
+             onClick={() => setActiveTab('details')}
+             className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'details' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+           >
+             Details
+           </button>
+           <button 
+             onClick={() => setActiveTab('links')}
+             className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'links' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+           >
+             Linked Items
+           </button>
+        </div>
+
         <div className="p-8 overflow-y-auto space-y-6">
-           {fields.map((field: any, idx: number) => (
-             <div key={idx}>
-               <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 tracking-wide">{field.label}</label>
-               {field.type === 'select' ? (
-                 <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-700 dark:text-slate-200">
-                   {field.options.map((opt: string) => <option key={opt}>{opt}</option>)}
+           {activeTab === 'details' ? (
+             fields.map((field: any, idx: number) => (
+               <div key={idx}>
+                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 tracking-wide">{field.label}</label>
+                 {field.type === 'select' ? (
+                   <select 
+                      value={formData[field.key] || ''}
+                      onChange={(e) => handleChange(field.key, e.target.value)}
+                      className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-700 dark:text-slate-200"
+                   >
+                     {field.options.map((opt: string) => <option key={opt} value={opt}>{opt}</option>)}
+                   </select>
+                 ) : field.type === 'textarea' ? (
+                   <textarea 
+                      value={formData[field.key] || ''}
+                      onChange={(e) => handleChange(field.key, e.target.value)}
+                      className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-700 dark:text-slate-200 min-h-[100px]" 
+                      placeholder={field.placeholder} 
+                   />
+                 ) : field.type === 'custom' ? (
+                    field.render(formData, handleChange)
+                 ) : (
+                   <input 
+                      type={field.type || 'text'} 
+                      value={formData[field.key] || ''}
+                      onChange={(e) => handleChange(field.key, e.target.value)}
+                      className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-700 dark:text-slate-200" 
+                      placeholder={field.placeholder} 
+                   />
+                 )}
+               </div>
+             ))
+           ) : (
+             <div className="space-y-6">
+               <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl text-sm text-blue-700 dark:text-blue-300">
+                  Connect this item to other entities in the system. Links create relationships between jobs, people, and inventory.
+               </div>
+               
+               <div>
+                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 tracking-wide">Link Type</label>
+                 <select 
+                   className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-700 dark:text-slate-200 mb-4"
+                   onChange={(e) => handleChange('tempLinkType', e.target.value)}
+                 >
+                    <option value="">Select Entity Type...</option>
+                    {linkOptions.map(opt => <option key={opt.type} value={opt.type}>{opt.type}</option>)}
                  </select>
-               ) : field.type === 'textarea' ? (
-                 <textarea className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-700 dark:text-slate-200 min-h-[100px]" placeholder={field.placeholder} defaultValue={initialData?.[field.key]} />
-               ) : (
-                 <input type={field.type || 'text'} className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/50 transition-all text-slate-700 dark:text-slate-200" placeholder={field.placeholder} defaultValue={initialData?.[field.key]} />
+               </div>
+               
+               {formData.tempLinkType && (
+                 <div className="animate-in fade-in slide-in-from-top-2">
+                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5 tracking-wide">Select Item to Link</label>
+                    <select 
+                      className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-slate-700 dark:text-slate-200"
+                      onChange={(e) => {
+                         const currentLinks = formData.linkedItems || [];
+                         handleChange('linkedItems', [...currentLinks, { type: formData.tempLinkType, value: e.target.value }]);
+                         handleChange('tempLinkType', ''); // Reset after add
+                      }}
+                    >
+                        <option value="">Choose item...</option>
+                        {linkOptions.find(o => o.type === formData.tempLinkType)?.items.map(item => (
+                          <option key={item} value={item}>{item}</option>
+                        ))}
+                    </select>
+                 </div>
                )}
-             </div>
-           ))}
-           
-           {/* Cross Linking Section */}
-           <div className="pt-6 border-t border-slate-100 dark:border-slate-800">
-             <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-               <ExternalLink size={14} /> Linked Items
-             </h4>
-             <div className="grid grid-cols-2 gap-4">
-               <div>
-                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Link to Project</label>
-                 <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-sm">
-                   <option>Select Project...</option>
-                   <option>Smith Residence</option>
-                   <option>Acme Office HQ</option>
-                 </select>
+
+               <div className="mt-4">
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-3">Active Links</h4>
+                  {(formData.linkedItems || []).length === 0 ? (
+                    <div className="text-sm text-slate-400 italic">No links created yet.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {formData.linkedItems.map((link: any, i: number) => (
+                        <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700">
+                           <div className="flex items-center gap-3">
+                              <Link size={16} className="text-blue-500" />
+                              <div>
+                                <span className="text-xs font-bold text-slate-500 uppercase mr-2">{link.type}</span>
+                                <span className="text-sm font-medium text-slate-900 dark:text-white">{link.value}</span>
+                              </div>
+                           </div>
+                           <button 
+                             onClick={() => handleChange('linkedItems', formData.linkedItems.filter((_: any, idx: number) => idx !== i))}
+                             className="text-red-500 hover:text-red-700 p-1"
+                           >
+                              <X size={14} />
+                           </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                </div>
-               <div>
-                 <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1.5">Link to Quote</label>
-                 <select className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none text-sm">
-                   <option>Select Quote...</option>
-                   <option>Q-2024-001</option>
-                   <option>Q-2024-002</option>
-                 </select>
-               </div>
              </div>
-           </div>
+           )}
         </div>
         <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50 dark:bg-slate-800/50 rounded-b-2xl">
           <button onClick={onClose} className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">Cancel</button>
-          <button onClick={onSave} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all">Save Changes</button>
+          <button onClick={() => onSave(formData)} className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all">Save Changes</button>
         </div>
       </div>
     </div>
   );
 };
 
-// Minimalist Stat Card (Clickable)
+// --- Components ---
+
+const GenericCRMList = ({ title, type, icon: Icon }: { title: string, type: string, icon: any }) => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  return (
+    <div className="p-8 animate-in fade-in h-full flex flex-col">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{title}</h2>
+        <button 
+          onClick={() => setIsModalOpen(true)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow hover:bg-blue-700 transition-colors flex items-center gap-2"
+        >
+          <Plus size={16} /> Add {type}
+        </button>
+      </div>
+      <div className="flex-1 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center p-8 text-center">
+        <div className="bg-slate-100 dark:bg-slate-700/50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Icon size={40} className="text-slate-400 dark:text-slate-500" />
+        </div>
+        <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200 mb-2">No {title} Found</h3>
+        <p className="text-slate-500 dark:text-slate-400 mb-6 max-w-sm">
+          There are no {title.toLowerCase()} recorded in the system yet. Start by adding a new one.
+        </p>
+      </div>
+
+      <ItemModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={`Add New ${type}`}
+        onSave={(data: any) => { alert('Item created successfully with links!'); setIsModalOpen(false); }}
+        fields={[
+          { key: 'name', label: 'Name / Title', placeholder: `Enter ${type} name` },
+          { key: 'desc', label: 'Description', type: 'textarea', placeholder: 'Additional details...' }
+        ]}
+      />
+    </div>
+  );
+};
+
+const QuoteAutomation = () => {
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showResult, setShowResult] = useState(false);
+
+  const handleUpload = () => {
+    setIsAnalyzing(true);
+    setTimeout(() => {
+        setIsAnalyzing(false);
+        setShowResult(true);
+    }, 2000);
+  };
+
+  const handleDownload = () => {
+    alert("Starting PDF download for 'Smith Residence Quote.pdf'...");
+  };
+
+  const handleRecentClick = (id: number) => {
+      setShowResult(true);
+      // In a real app, load data by ID
+  };
+
+  return (
+    <div className="p-8 animate-in fade-in slide-in-from-bottom-4 duration-500 h-full flex flex-col relative">
+      <div className="flex justify-between items-center mb-8">
+        <div>
+          <h2 className="text-3xl font-bold text-slate-900 dark:text-white">Quote Automation</h2>
+          <p className="text-slate-500 dark:text-slate-400">AI-Powered Floorplan Analysis & Estimation</p>
+        </div>
+        <button onClick={handleUpload} disabled={isAnalyzing} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2">
+          {isAnalyzing ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div> : <UploadCloud size={20} />}
+          {isAnalyzing ? 'Analyzing...' : 'Upload Plan'}
+        </button>
+      </div>
+
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-8 min-h-0">
+        <div 
+          className="bg-slate-100 dark:bg-slate-800/50 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 flex flex-col items-center justify-center p-8 text-center hover:border-blue-500 transition-colors cursor-pointer group relative overflow-hidden"
+          onClick={handleUpload}
+        >
+          {showResult && (
+             <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-10">
+                 <div className="bg-white dark:bg-slate-800 p-2 rounded-lg shadow-xl">
+                    <img src="https://images.unsplash.com/photo-1556912998-c57cc6b63cd7?auto=format&fit=crop&w=800&q=80" alt="Analyzed" className="w-full h-full object-cover rounded opacity-80" />
+                 </div>
+             </div>
+          )}
+          <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-full flex items-center justify-center mb-4 shadow-sm group-hover:scale-110 transition-transform">
+            <UploadCloud size={32} className="text-blue-500" />
+          </div>
+          <h3 className="text-xl font-bold text-slate-700 dark:text-slate-200">Drop Floorplan Here</h3>
+          <p className="text-slate-500 text-sm mt-2 max-w-xs">Supports PDF, PNG, JPG. Our AI will automatically detect rooms and suggest devices.</p>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 flex flex-col h-full">
+           <h3 className="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+             <FileText size={20} className="text-blue-500" /> 
+             {showResult ? 'Generated Quote' : 'Recent Quotes'}
+           </h3>
+           
+           {showResult ? (
+              <div className="flex-1 animate-in fade-in slide-in-from-right-4">
+                  <div className="flex justify-between items-end mb-6 pb-4 border-b border-slate-100 dark:border-slate-700">
+                      <div>
+                          <div className="text-2xl font-bold text-slate-900 dark:text-white">$15,420.00</div>
+                          <div className="text-sm text-green-500 font-bold">Premium Tier • Loxone</div>
+                      </div>
+                      <button onClick={handleDownload} className="px-4 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-lg font-bold text-sm hover:opacity-90 transition-opacity">Download PDF</button>
+                  </div>
+                  <div className="space-y-4">
+                      <div className="flex justify-between items-center text-sm">
+                          <span className="text-slate-500">Miniserver & Extensions</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-200">$2,450.00</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                          <span className="text-slate-500">Lighting (24 Circuits)</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-200">$4,200.00</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                          <span className="text-slate-500">Shading (8 Blinds)</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-200">$3,600.00</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                          <span className="text-slate-500">Audio (4 Zones)</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-200">$1,800.00</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                          <span className="text-slate-500">Labor (32 Hours)</span>
+                          <span className="font-bold text-slate-700 dark:text-slate-200">$3,370.00</span>
+                      </div>
+                  </div>
+                  <div className="mt-8 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
+                      <strong>AI Analysis:</strong> Based on the floorplan, we detected 3 bedrooms, an open plan living area, and 2 bathrooms. The recommended configuration includes presence sensors in all transit areas and touch switches at main entry points.
+                  </div>
+              </div>
+           ) : (
+              <div className="space-y-3 flex-1 overflow-y-auto">
+                {[1,2,3].map(i => (
+                  <div 
+                    key={i} 
+                    onClick={() => handleRecentClick(i)}
+                    className="p-4 rounded-xl bg-slate-50 dark:bg-slate-700/30 border border-slate-100 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                        <span className="font-bold text-slate-700 dark:text-slate-200">Smith Residence</span>
+                        <span className="text-xs font-bold px-2 py-1 rounded bg-green-100 text-green-700">Approved</span>
+                    </div>
+                    <div className="flex justify-between text-sm text-slate-500">
+                        <span>Oct 24, 2024</span>
+                        <span>$12,450.00</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+           )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const CanvasEditor = () => {
+  const [items, setItems] = useState<any[]>([]);
+  const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+
+  const handleAddItem = (symbol: any) => {
+     const newItem = {
+         ...symbol,
+         uid: Date.now(),
+         x: 350 + Math.random() * 100,
+         y: 250 + Math.random() * 100
+     };
+     setItems([...items, newItem]);
+  };
+
+  const handleDragStart = (e: React.DragEvent, uid: number) => {
+     e.dataTransfer.setData('uid', uid.toString());
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+     e.preventDefault();
+     const uid = Number(e.dataTransfer.getData('uid'));
+     const rect = e.currentTarget.getBoundingClientRect();
+     const x = (e.clientX - rect.left) / zoom; // Adjust for zoom
+     const y = (e.clientY - rect.top) / zoom;
+
+     setItems(prev => prev.map(item => item.uid === uid ? { ...item, x, y } : item));
+  };
+
+  const handleSave = () => {
+      alert(`Layout saved! ${items.length} items placed.`);
+  };
+
+  return (
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 animate-in fade-in duration-300">
+      <div className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between px-6 shrink-0">
+         <h2 className="text-xl font-bold text-slate-900 dark:text-white">Canvas Editor</h2>
+         <div className="flex gap-2">
+            <button onClick={() => setZoom(prev => Math.min(prev + 0.1, 2))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><ZoomIn size={20}/></button>
+            <span className="flex items-center text-xs font-mono text-slate-500 w-12 justify-center">{Math.round(zoom * 100)}%</span>
+            <button onClick={() => setZoom(prev => Math.max(prev - 0.1, 0.5))} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><ZoomOut size={20}/></button>
+            <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm shadow-md hover:bg-blue-700 transition-colors">Save Layout</button>
+         </div>
+      </div>
+      <div className="flex-1 flex overflow-hidden">
+         <div className="w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col">
+            <div className="p-4 font-bold text-slate-500 text-xs uppercase">Toolbox</div>
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
+               {SYMBOLS.map(sym => (
+                  <button 
+                    key={sym.id} 
+                    onClick={() => handleAddItem(sym)}
+                    className="w-full p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg flex items-center gap-3 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-left"
+                  >
+                     <div className={`p-2 rounded ${sym.color} text-white`}>
+                        <sym.icon size={16} />
+                     </div>
+                     <div>
+                        <div className="font-bold text-sm text-slate-700 dark:text-slate-200">{sym.label}</div>
+                        <div className="text-xs text-slate-500">${sym.cost}</div>
+                     </div>
+                  </button>
+               ))}
+            </div>
+         </div>
+         <div className="flex-1 bg-slate-100 dark:bg-slate-950 relative overflow-hidden flex items-center justify-center">
+            <div 
+              className="w-[800px] h-[600px] bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-700 relative overflow-hidden transition-transform duration-200 origin-center"
+              style={{ transform: `scale(${zoom})` }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleDrop}
+            >
+               <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'linear-gradient(#000 1px, transparent 1px), linear-gradient(90deg, #000 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+               
+               {items.length === 0 && (
+                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-700 pointer-events-none font-bold text-xl text-center">
+                    Click items in toolbox to add <br/> Drag to move
+                 </div>
+               )}
+
+               {items.map(item => (
+                  <div 
+                    key={item.uid}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, item.uid)}
+                    style={{ left: item.x, top: item.y }}
+                    className={`absolute -translate-x-1/2 -translate-y-1/2 p-2 rounded shadow-lg cursor-move active:scale-110 transition-transform hover:ring-2 ring-blue-500 ${item.color} text-white`}
+                  >
+                     <item.icon size={20} />
+                  </div>
+               ))}
+            </div>
+         </div>
+      </div>
+    </div>
+  );
+};
+
+const OperationsBoard = () => {
+  const [tasks, setTasks] = useState<{ id: string, title: string, status: string }[]>([
+    { id: '1', title: 'Order Loxone Miniserver', status: 'To Do' },
+    { id: '2', title: 'Draft Circuit Plan', status: 'In Progress' },
+  ]);
+
+  const addTask = (status: string) => {
+    const title = prompt("Enter task name:");
+    if (title) {
+        setTasks([...tasks, { id: Date.now().toString(), title, status }]);
+    }
+  };
+
+  const moveTask = (id: string, newStatus: string) => {
+      setTasks(tasks.map(t => t.id === id ? { ...t, status: newStatus } : t));
+  };
+
+  return (
+    <div className="h-full p-6 overflow-x-auto whitespace-nowrap bg-slate-50 dark:bg-slate-900 animate-in fade-in duration-300">
+      <div className="flex gap-6 h-full">
+         {['To Do', 'In Progress', 'Blocked', 'Completed'].map((status) => (
+           <div key={status} className="w-80 h-full inline-block align-top whitespace-normal">
+              <div className="bg-slate-100 dark:bg-slate-800 rounded-xl h-full flex flex-col max-h-full border border-slate-200 dark:border-slate-700">
+                 <div className="p-4 font-bold text-slate-700 dark:text-slate-200 flex justify-between items-center sticky top-0 bg-inherit rounded-t-xl z-10">
+                    {status}
+                    <span className="bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded-full text-xs">
+                        {tasks.filter(t => t.status === status).length}
+                    </span>
+                 </div>
+                 <div className="p-4 pt-0 flex-1 overflow-y-auto space-y-3">
+                    {tasks.filter(t => t.status === status).map(task => (
+                        <div key={task.id} className="bg-white dark:bg-slate-900 p-3 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 group">
+                            <div className="text-sm font-medium text-slate-800 dark:text-slate-200 mb-2">{task.title}</div>
+                            <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity gap-1">
+                                {status !== 'To Do' && <button onClick={() => moveTask(task.id, 'To Do')} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded" title="Move to To Do"><ArrowLeft size={12} /></button>}
+                                {status !== 'Completed' && <button onClick={() => moveTask(task.id, 'Completed')} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded" title="Move to Completed"><Check size={12} /></button>}
+                            </div>
+                        </div>
+                    ))}
+                    <button 
+                        onClick={() => addTask(status)}
+                        className="w-full py-2 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg text-slate-400 text-sm font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                       + Add Task
+                    </button>
+                 </div>
+              </div>
+           </div>
+         ))}
+      </div>
+    </div>
+  );
+};
+
+const ElectricalCAD = () => {
+   const [activeTool, setActiveTool] = useState('select');
+
+   const handleToolClick = (tool: string) => {
+     setActiveTool(tool);
+   };
+
+   const handleExport = () => {
+     alert('Exporting current schematic to DXF...');
+   };
+
+   return (
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 animate-in fade-in">
+       <div className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between px-6 shrink-0">
+         <h2 className="text-xl font-bold text-slate-900 dark:text-white">Electrical CAD</h2>
+         <div className="flex gap-2">
+            <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><Layers size={20}/></button>
+            <button onClick={handleExport} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors">Export DXF</button>
+         </div>
+      </div>
+      <div className="flex-1 flex items-center justify-center relative overflow-hidden cursor-crosshair">
+          <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+          <div className="text-center relative z-10 p-8 bg-white/80 dark:bg-slate-900/80 backdrop-blur rounded-2xl border border-slate-200 dark:border-slate-800">
+             <Settings size={48} className="mx-auto text-blue-500 mb-4 animate-spin-slow" />
+             <h2 className="text-xl font-bold text-slate-700 dark:text-slate-200">CAD Workstation</h2>
+             <p className="text-slate-500 mb-4">Active Tool: <span className="font-mono font-bold uppercase">{activeTool}</span></p>
+             <div className="flex gap-2 justify-center">
+                <button 
+                  onClick={() => handleToolClick('draw')} 
+                  className={`p-3 rounded-lg hover:scale-110 transition-transform ${activeTool === 'draw' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800'}`}
+                >
+                  <PenTool size={20} />
+                </button>
+                <button 
+                  onClick={() => handleToolClick('rect')} 
+                  className={`p-3 rounded-lg hover:scale-110 transition-transform ${activeTool === 'rect' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800'}`}
+                >
+                  <Square size={20} />
+                </button>
+                <button 
+                  onClick={() => handleToolClick('text')} 
+                  className={`p-3 rounded-lg hover:scale-110 transition-transform ${activeTool === 'text' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-slate-100 dark:bg-slate-800'}`}
+                >
+                  <Type size={20} />
+                </button>
+             </div>
+          </div>
+      </div>
+    </div>
+   );
+};
+
+const AILearning = () => {
+    const modules = [
+        { id: 1, title: 'Loxone Config Basics', type: 'Video', duration: '15 min', progress: 100 },
+        { id: 2, title: 'Advanced Lighting Logic', type: 'Article', duration: '10 min', progress: 45 },
+        { id: 3, title: 'Security Integration Protocols', type: 'Course', duration: '1 hr', progress: 0 },
+        { id: 4, title: 'HVAC Control Systems', type: 'Video', duration: '25 min', progress: 0 },
+    ];
+
+    const handleModuleClick = (title: string) => {
+        alert(`Launching course: ${title}`);
+    };
+
+    return (
+        <div className="p-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="flex justify-between items-center mb-8">
+                <div>
+                    <h2 className="text-3xl font-bold text-slate-900 dark:text-white">AI Learning Center</h2>
+                    <p className="text-slate-500 dark:text-slate-400">Enhance your skills with tailored courses</p>
+                </div>
+                <div className="flex gap-4">
+                    <div className="text-right">
+                        <div className="text-sm font-bold text-slate-900 dark:text-white">Level 4 Technician</div>
+                        <div className="text-xs text-slate-500">1,250 XP</div>
+                    </div>
+                    <div className="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center text-white font-bold">
+                        <Award size={20} />
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {modules.map((mod) => (
+                    <div 
+                        key={mod.id} 
+                        onClick={() => handleModuleClick(mod.title)}
+                        className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all cursor-pointer group hover:-translate-y-1"
+                    >
+                        <div className="flex justify-between items-start mb-4">
+                            <div className={`p-2 rounded-lg ${mod.type === 'Video' ? 'bg-red-100 text-red-600' : mod.type === 'Article' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                                {mod.type === 'Video' ? <Video size={20} /> : mod.type === 'Article' ? <BookOpen size={20} /> : <Brain size={20} />}
+                            </div>
+                            {mod.progress === 100 && <div className="text-green-500"><CheckCircle2 size={20} /></div>}
+                        </div>
+                        <h3 className="font-bold text-slate-900 dark:text-white mb-2 group-hover:text-blue-600 transition-colors">{mod.title}</h3>
+                        <div className="flex justify-between items-end">
+                            <span className="text-xs text-slate-500">{mod.duration}</span>
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{mod.progress}%</span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-700 h-1.5 rounded-full mt-3 overflow-hidden">
+                            <div className="h-full bg-blue-600 rounded-full" style={{ width: `${mod.progress}%` }}></div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 const StatCard = ({ title, value, trend, icon: Icon, onClick, active }: { title: string, value: string, trend?: string, icon: any, onClick: () => void, active?: boolean }) => (
   <button 
     onClick={onClick}
@@ -184,135 +793,272 @@ const StatCard = ({ title, value, trend, icon: Icon, onClick, active }: { title:
   </button>
 );
 
-// Custom SVG Charts
-const RevenueChart = () => {
-  const data = [10, 25, 15, 35, 20, 45, 30, 55, 40, 70];
-  const width = 600;
-  const height = 200;
-  const max = 80;
-  const step = width / (data.length - 1);
+const CalendarView = () => {
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [events, setEvents] = useState<{ id: string, title: string, time: string, date: string, linkedTo?: { type: string, value: string } }[]>([
+    { id: '1', title: 'Site Visit - Smith', time: '10:00 AM', date: new Date().toISOString().split('T')[0], linkedTo: { type: 'Project', value: 'PRJ-001' } },
+  ]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
   
-  const points = data.map((d, i) => `${i * step},${height - (d / max) * height}`).join(' ');
-  const areaPoints = `0,${height} ${points} ${width},${height}`;
+  const handleAddEvent = (data: any) => {
+    const newEvent = {
+        id: Date.now().toString(),
+        title: data.title,
+        time: data.time || '12:00 PM',
+        date: data.date || new Date().toISOString().split('T')[0],
+        linkedTo: data.linkedItems && data.linkedItems.length > 0 ? data.linkedItems[0] : undefined
+    };
+    setEvents([...events, newEvent]);
+    setIsModalOpen(false);
+  };
 
-  return (
-    <div className="w-full h-64 relative">
-      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
-         <defs>
-           <linearGradient id="grad1" x1="0%" y1="0%" x2="0%" y2="100%">
-             <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2"/>
-             <stop offset="100%" stopColor="#3b82f6" stopOpacity="0"/>
-           </linearGradient>
-         </defs>
-         {[0.2, 0.4, 0.6, 0.8].map(p => (
-           <line key={p} x1="0" y1={height * p} x2={width} y2={height * p} stroke="currentColor" strokeOpacity="0.05" />
-         ))}
-         <path d={areaPoints} fill="url(#grad1)" />
-         <polyline points={points} fill="none" stroke="#3b82f6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-         {data.map((d, i) => (
-           <g key={i} className="group">
-             <circle cx={i * step} cy={height - (d / max) * height} r="6" className="fill-white stroke-blue-500 stroke-2 opacity-0 group-hover:opacity-100 transition-opacity" />
-             <foreignObject x={i * step - 20} y={height - (d / max) * height - 40} width="40" height="30" className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                <div className="bg-slate-800 text-white text-xs rounded px-1 py-0.5 text-center shadow-lg">${d}k</div>
-             </foreignObject>
-           </g>
-         ))}
-      </svg>
-    </div>
-  );
-};
-
-const ProjectsChart = () => {
-  const data = [
-    { label: 'Planning', value: 30, color: '#f59e0b' },
-    { label: 'Active', value: 45, color: '#3b82f6' },
-    { label: 'Review', value: 25, color: '#10b981' }
-  ];
-  
-  const total = data.reduce((acc, curr) => acc + curr.value, 0);
-  let cumPercent = 0;
-
-  const getCoordinatesForPercent = (percent: number) => {
-    const x = Math.cos(2 * Math.PI * percent);
-    const y = Math.sin(2 * Math.PI * percent);
-    return [x, y];
+  const changeMonth = (offset: number) => {
+    const newDate = new Date(currentDate);
+    newDate.setMonth(newDate.getMonth() + offset);
+    setCurrentDate(newDate);
   };
 
   return (
-    <div className="flex justify-center items-center h-64 gap-8">
-       <div className="w-40 h-40 relative">
-         <svg viewBox="-1 -1 2 2" className="transform -rotate-90 w-full h-full">
-            {data.map((slice, i) => {
-              const startPercent = cumPercent;
-              const slicePercent = slice.value / total;
-              cumPercent += slicePercent;
-              
-              const [startX, startY] = getCoordinatesForPercent(startPercent);
-              const [endX, endY] = getCoordinatesForPercent(cumPercent);
-              const largeArcFlag = slicePercent > 0.5 ? 1 : 0;
-              
-              const pathData = `M ${startX} ${startY} A 1 1 0 ${largeArcFlag} 1 ${endX} ${endY} L 0 0`;
-              
-              return (
-                <path 
-                  key={i} 
-                  d={pathData} 
-                  fill={slice.color} 
-                  className="hover:opacity-90 transition-opacity cursor-pointer stroke-white dark:stroke-slate-900 stroke-[0.02]" 
-                />
-              );
-            })}
-            <circle r="0.6" fill="currentColor" className="text-white dark:text-slate-900" />
-         </svg>
-       </div>
-       <div className="space-y-2">
-         {data.map((d, i) => (
-           <div key={i} className="flex items-center gap-2">
-             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: d.color }}></div>
-             <span className="text-sm font-medium text-slate-600 dark:text-slate-300">{d.label}</span>
-             <span className="text-sm font-bold text-slate-900 dark:text-white">{d.value}%</span>
-           </div>
-         ))}
-       </div>
-    </div>
-  );
-};
-
-const TeamChart = () => {
-  const data = [60, 85, 45, 90, 70];
-  const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-  
-  return (
-    <div className="w-full h-64 flex items-end justify-between gap-4 pt-8 pb-2">
-       {data.map((h, i) => (
-         <div key={i} className="flex-1 flex flex-col justify-end items-center group relative h-full">
-            <div className="w-full bg-indigo-500 rounded-t-lg opacity-80 group-hover:opacity-100 transition-all relative" style={{ height: `${h}%` }}>
-               <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">
-                 {h}%
-               </div>
+    <div className="p-8 h-full flex flex-col animate-in fade-in">
+        <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Calendar</h2>
+            <div className="flex gap-2">
+                <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><ChevronLeft size={20} /></button>
+                <span className="text-lg font-bold min-w-[150px] text-center">
+                    {currentDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                </span>
+                <button onClick={() => changeMonth(1)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><ChevronRight size={20} /></button>
             </div>
-            <span className="text-xs font-medium text-slate-500 mt-2">{labels[i]}</span>
-         </div>
-       ))}
+            <button onClick={() => setIsModalOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow hover:bg-blue-700 transition-colors flex items-center gap-2">
+                <Plus size={16} /> New Event
+            </button>
+        </div>
+
+        <div className="flex-1 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col">
+            <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-700">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                    <div key={day} className="p-4 text-center font-bold text-slate-500 text-xs uppercase">{day}</div>
+                ))}
+            </div>
+            <div className="grid grid-cols-7 flex-1">
+                {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+                    <div key={`empty-${i}`} className="border-r border-b border-slate-100 dark:border-slate-700/50 bg-slate-50/50 dark:bg-slate-900/50"></div>
+                ))}
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const day = i + 1;
+                    const dateStr = new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toISOString().split('T')[0];
+                    const dayEvents = events.filter(e => e.date === dateStr);
+                    
+                    return (
+                        <div key={day} className="border-r border-b border-slate-100 dark:border-slate-700/50 p-2 min-h-[100px] relative hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group">
+                            <span className={`text-sm font-bold ${dayEvents.length > 0 ? 'text-blue-600' : 'text-slate-400'}`}>{day}</span>
+                            <div className="mt-2 space-y-1">
+                                {dayEvents.map(event => (
+                                    <div key={event.id} className="text-xs p-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded border border-blue-200 dark:border-blue-800/50 truncate cursor-pointer hover:scale-105 transition-transform">
+                                        <div className="font-bold">{event.time}</div>
+                                        <div>{event.title}</div>
+                                        {event.linkedTo && (
+                                            <div className="mt-1 pt-1 border-t border-blue-200 dark:border-blue-800/50 flex items-center gap-1 text-[9px] opacity-80">
+                                                <Link size={8} /> {event.linkedTo.value}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            <button 
+                              onClick={() => { setIsModalOpen(true); }}
+                              className="absolute top-2 right-2 p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                                <Plus size={14} className="text-slate-400" />
+                            </button>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+
+        <ItemModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            title="Schedule New Event"
+            onSave={handleAddEvent}
+            fields={[
+                { key: 'title', label: 'Event Title', placeholder: 'e.g. Client Meeting' },
+                { key: 'date', label: 'Date', type: 'date' },
+                { key: 'time', label: 'Time', type: 'time' },
+                { key: 'description', label: 'Description', type: 'textarea' }
+            ]}
+        />
     </div>
   );
 };
 
-interface ModuleCardProps {
+// Helper for Calendar
+function ChevronLeft({ size }: { size: number }) {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width={size} 
+      height={size} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    >
+      <path d="m15 18-6-6 6-6"/>
+    </svg>
+  );
+}
+
+const ProjectsView = () => {
+  const [projects, setProjects] = useState([
+    { id: 'PRJ-001', name: 'Smith Residence Automation', client: 'John Smith', status: 'In Progress', deadline: '2025-06-15', progress: 45 },
+    { id: 'PRJ-002', name: 'Downtown Loft Reno', client: 'Sarah Connor', status: 'Planning', deadline: '2025-07-01', progress: 10 },
+    { id: 'PRJ-003', name: 'Westside Office Security', client: 'TechCorp Inc.', status: 'Completed', deadline: '2025-04-20', progress: 100 },
+    { id: 'PRJ-004', name: 'Lakeside Villa Lighting', client: 'Bruce Wayne', status: 'In Progress', deadline: '2025-08-30', progress: 60 },
+  ]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleSaveProject = (data: any) => {
+      const newProject = {
+          id: `PRJ-00${projects.length + 1}`,
+          name: data.name,
+          client: data.client,
+          status: 'Planning',
+          deadline: data.deadline || '2025-12-31',
+          progress: 0
+      };
+      setProjects([...projects, newProject]);
+      setIsModalOpen(false);
+  };
+
+  return (
+    <div className="p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Projects In Progress</h2>
+        <button onClick={() => setIsModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm font-medium shadow-lg shadow-blue-600/20 transition-all">
+          <Plus size={16} /> New Project
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {projects.map((project) => (
+          <div key={project.id} className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all group">
+            <div className="flex justify-between items-start mb-4">
+              <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-lg">
+                <Briefcase size={20} />
+              </div>
+              <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                project.status === 'Completed' ? 'bg-green-100 text-green-700' :
+                project.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
+                'bg-yellow-100 text-yellow-700'
+              }`}>
+                {project.status}
+              </span>
+            </div>
+            <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-1">{project.name}</h3>
+            <p className="text-sm text-slate-500 mb-4">{project.client} • {project.id}</p>
+            
+            <div className="mb-4">
+              <div className="flex justify-between text-xs font-medium text-slate-500 mb-1">
+                <span>Progress</span>
+                <span>{project.progress}%</span>
+              </div>
+              <div className="w-full bg-slate-100 dark:bg-slate-700 rounded-full h-2">
+                <div 
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-1000" 
+                  style={{ width: `${project.progress}%` }}
+                ></div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-700">
+              <div className="flex items-center text-xs text-slate-500">
+                <CalendarIcon size={14} className="mr-1.5" />
+                {project.deadline}
+              </div>
+              <button onClick={() => alert(`Opening ${project.name}`)} className="text-blue-600 text-sm font-medium hover:underline flex items-center">
+                View Details <ChevronRight size={14} className="ml-1" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <ItemModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="Create New Project"
+        onSave={handleSaveProject}
+        fields={[
+            { key: 'name', label: 'Project Name', placeholder: 'e.g. Miller Renovation' },
+            { key: 'client', label: 'Client Name', placeholder: 'e.g. Alice Miller' },
+            { key: 'deadline', label: 'Target Deadline', type: 'date' }
+        ]}
+      />
+    </div>
+  );
+};
+
+const InventoryView = () => {
+  const [items, setItems] = useState([
+      {name: 'Miniserver', stock: 12, sku: 'LX-1001'}, 
+      {name: 'Relay Extension', stock: 4, sku: 'LX-2004'}, 
+      {name: 'Dimmer', stock: 8, sku: 'LX-2005'}
+  ]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleAddItem = (data: any) => {
+      setItems([...items, { name: data.name, stock: Number(data.stock), sku: data.sku }]);
+      setIsModalOpen(false);
+  };
+
+  return (
+    <div className="p-8 animate-in fade-in">
+        <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Inventory Stock</h2>
+            <button onClick={() => setIsModalOpen(true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow hover:bg-blue-700 transition-colors">Add Item</button>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {items.map(item => (
+                <div key={item.sku} className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <div className="flex justify-between items-start mb-2">
+                        <div className="font-bold text-slate-900 dark:text-white">{item.name}</div>
+                        <div className={`px-2 py-1 rounded text-xs font-bold ${item.stock < 5 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                            {item.stock} in stock
+                        </div>
+                    </div>
+                    <div className="text-sm text-slate-500">SKU: {item.sku}</div>
+                </div>
+            ))}
+        </div>
+        <ItemModal 
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            title="Add Inventory Item"
+            onSave={handleAddItem}
+            fields={[
+                { key: 'name', label: 'Item Name', placeholder: 'e.g. Touch Switch' },
+                { key: 'stock', label: 'Initial Stock', type: 'number', placeholder: '0' },
+                { key: 'sku', label: 'SKU', placeholder: 'LX-XXXX' }
+            ]}
+        />
+    </div>
+  );
+};
+
+const ModuleCard: React.FC<{
   title: string;
   icon: React.ElementType;
   desc: string;
   color: string;
   onClick: () => void;
-}
-
-const ModuleCard: React.FC<ModuleCardProps> = ({ 
-  title, 
-  icon: Icon, 
-  desc, 
-  color, 
-  onClick 
-}) => (
+}> = ({ title, icon: Icon, desc, color, onClick }) => (
   <button 
     onClick={onClick}
     className="bg-white dark:bg-slate-800 p-8 rounded-3xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-left border border-slate-100 dark:border-slate-700 group flex flex-col h-full relative overflow-hidden"
@@ -325,1319 +1071,991 @@ const ModuleCard: React.FC<ModuleCardProps> = ({
   </button>
 );
 
-const Dashboard = ({ onNavigate }: { onNavigate: (view: ViewState) => void }) => {
-  const modules = [
-    { id: 'crm', title: 'CRM Dashboard', icon: LayoutDashboard, desc: 'Manage customers, projects, scheduling, inventory, and more in one place.', color: 'text-blue-600 bg-blue-600' },
-    { id: 'quotes', title: 'Quote Automation', icon: FileText, desc: 'Upload floor plans and let AI generate accurate quotes automatically.', color: 'text-yellow-600 bg-yellow-600' },
-    { id: 'canvas', title: 'Canvas Editor', icon: PenTool, desc: 'Professional floor plan editor with zoom, pan, and symbol management.', color: 'text-orange-600 bg-orange-600' },
-    { id: 'mapping', title: 'Electrical Mapping', icon: Zap, desc: 'Professional electrical mapping with wiring, circuits, and component management.', color: 'text-amber-500 bg-amber-500' },
-    { id: 'board', title: 'Loxone Board Builder', icon: Cpu, desc: 'Design professional Loxone boards with AI generation and integration.', color: 'text-slate-700 bg-slate-700' },
-    { id: 'cad', title: 'Electrical CAD Designer', icon: Settings, desc: 'Professional-grade CAD drawings with AI generation and DXF export.', color: 'text-emerald-700 bg-emerald-700' },
-    { id: 'learning', title: 'AI Learning', icon: Brain, desc: 'Train the system with examples to improve accuracy over time.', color: 'text-pink-600 bg-pink-600' },
-    { id: 'ops', title: 'Operations Board', icon: ClipboardList, desc: 'Kanban task management system for team workflow and project tracking.', color: 'text-indigo-600 bg-indigo-600' },
-    { id: 'admin', title: 'Admin Panel', icon: Users, desc: 'Manage users, assign permissions, and configure system access controls.', color: 'text-cyan-600 bg-cyan-600' },
-  ];
+const ElectricalMapping = ({ onBack }: { onBack: () => void }) => {
+  const [circuits, setCircuits] = useState(Array.from({ length: 42 }, (_, i) => ({
+    id: i + 1,
+    label: i % 2 === 0 ? 'Spare' : i % 3 === 0 ? 'Lighting' : 'Power',
+    amps: i % 3 === 0 ? 15 : 20,
+    pole: 1,
+    phase: ['A', 'B', 'C'][i % 3]
+  })));
+  const [zoom, setZoom] = useState(1);
+
+  const handleRowAction = (id: number) => {
+    alert(`Options for Circuit #${id}`);
+  };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {modules.map((mod) => (
-          <ModuleCard 
-            key={mod.id}
-            title={mod.title}
-            icon={mod.icon}
-            desc={mod.desc}
-            color={mod.color}
-            onClick={() => onNavigate(mod.id as ViewState)}
-          />
-        ))}
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-950 animate-in fade-in duration-300">
+      <div className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between px-6 shrink-0">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300 transition-colors">
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Electrical Mapping</h2>
+            <p className="text-xs text-slate-500">Panel Schedule & Load Calculation</p>
+          </div>
+        </div>
+      </div>
+      <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
+        <div className="flex-1 overflow-y-auto p-6">
+           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+                 <h3 className="font-bold text-slate-900 dark:text-white">Main Distribution Board</h3>
+                 <span className="text-xs font-mono text-slate-400">MDB-01</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-50 dark:bg-slate-800 text-xs uppercase font-bold text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3">#</th>
+                      <th className="px-4 py-3">Description</th>
+                      <th className="px-4 py-3 w-24">Amps</th>
+                      <th className="px-4 py-3 w-20">Pole</th>
+                      <th className="px-4 py-3 w-20">Phase</th>
+                      <th className="px-4 py-3 w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {circuits.map((c) => (
+                      <tr key={c.id} className="group hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="px-4 py-2 font-mono text-slate-400">#{c.id}</td>
+                        <td className="px-4 py-2">
+                          <input 
+                            className="bg-transparent w-full outline-none text-slate-700 dark:text-slate-200 font-medium placeholder-slate-300" 
+                            defaultValue={c.label} 
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-bold ${c.amps > 20 ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-600'}`}>
+                            {c.amps}A
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-slate-500">{c.pole}P</td>
+                        <td className="px-4 py-2">
+                           <div className="flex items-center gap-2">
+                             <div className={`w-2 h-2 rounded-full ${c.phase === 'A' ? 'bg-red-500' : c.phase === 'B' ? 'bg-white border border-slate-300' : 'bg-blue-500'}`}></div>
+                             <span className="text-slate-500">{c.phase}</span>
+                           </div>
+                        </td>
+                        <td className="px-4 py-2">
+                          <button onClick={() => handleRowAction(c.id)} className="opacity-0 group-hover:opacity-100 p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-all text-slate-400">
+                            <MoreVertical size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+           </div>
+        </div>
+        <div className="w-full lg:w-96 bg-slate-100 dark:bg-slate-950 border-l border-slate-200 dark:border-slate-800 p-6 overflow-y-auto">
+           <div className="mb-6 flex items-center justify-between">
+              <h3 className="font-bold text-slate-500 uppercase text-xs tracking-wider">Visual Board</h3>
+              <div className="flex gap-2">
+                <button onClick={() => setZoom(prev => Math.min(prev + 0.1, 2))} className="p-1.5 bg-white dark:bg-slate-800 rounded shadow-sm hover:bg-slate-50"><ZoomIn size={14} className="text-slate-500" /></button>
+                <button onClick={() => setZoom(prev => Math.max(prev - 0.1, 0.5))} className="p-1.5 bg-white dark:bg-slate-800 rounded shadow-sm hover:bg-slate-50"><ZoomOut size={14} className="text-slate-500" /></button>
+              </div>
+           </div>
+           
+           <div 
+             className="bg-slate-300 dark:bg-slate-800 p-4 rounded-xl shadow-inner border-4 border-slate-400 dark:border-slate-700 mx-auto max-w-xs transition-transform origin-top"
+             style={{ transform: `scale(${zoom})` }}
+           >
+              <div className="bg-slate-200 dark:bg-slate-900 rounded-lg p-2 space-y-1">
+                 {Array.from({ length: Math.ceil(circuits.length / 2) }).map((_, rowIdx) => {
+                    const left = circuits[rowIdx * 2];
+                    const right = circuits[rowIdx * 2 + 1];
+                    return (
+                      <div key={rowIdx} className="flex items-center justify-between gap-4 h-8">
+                         <div className="flex-1 h-full flex items-center justify-end">
+                            {left && (
+                              <div className={`h-full w-full rounded-l flex items-center justify-center text-[10px] font-bold text-white border-r border-slate-900/20 ${left.label === 'Spare' ? 'bg-slate-400' : 'bg-slate-800'}`}>
+                                {left.amps}
+                              </div>
+                            )}
+                         </div>
+                         <div className="w-4 h-full bg-slate-400 dark:bg-slate-700 flex flex-col justify-center items-center gap-1">
+                            <div className="w-1 h-1 rounded-full bg-slate-500"></div>
+                            <div className="w-1 h-1 rounded-full bg-slate-500"></div>
+                         </div>
+                         <div className="flex-1 h-full flex items-center justify-start">
+                           {right && (
+                              <div className={`h-full w-full rounded-r flex items-center justify-center text-[10px] font-bold text-white border-l border-slate-900/20 ${right.label === 'Spare' ? 'bg-slate-400' : 'bg-slate-800'}`}>
+                                {right.amps}
+                              </div>
+                           )}
+                         </div>
+                      </div>
+                    );
+                 })}
+              </div>
+           </div>
+        </div>
       </div>
     </div>
   );
 };
 
-// --- CRM Sub-Views ---
-
-// Generic list item component for consistent look
-const ListItem = ({ title, subtitle, badge, badgeColor, onDelete, onEdit }: any) => (
-  <div className="group flex items-center justify-between p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all">
-    <div className="flex items-center gap-4">
-      <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center font-bold text-slate-500 dark:text-slate-400 text-sm">
-        {title.charAt(0)}
-      </div>
-      <div>
-        <h4 className="font-bold text-slate-900 dark:text-white">{title}</h4>
-        <p className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
-      </div>
-    </div>
-    <div className="flex items-center gap-4">
-      {badge && (
-        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeColor || 'bg-slate-100 text-slate-600'}`}>
-          {badge}
-        </span>
-      )}
-      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-        <button onClick={onEdit} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-400 hover:text-blue-500"><Edit2 size={14} /></button>
-        <button onClick={onDelete} className="p-1.5 hover:bg-red-50 dark:hover:bg-red-900/20 rounded text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
-      </div>
-    </div>
-  </div>
-);
-
-const PeopleView = ({ searchQuery, subCategory }: { searchQuery: string, subCategory?: string }) => {
-  const [people, setPeople] = useState([
-    { id: 1, name: 'John Doe', role: 'Customer', company: 'Acme Corp', contact: 'john@acme.com', phone: '555-0123', address: '123 Main St' },
-    { id: 2, name: 'Sarah Smith', role: 'Employee', company: 'Integratd Living', contact: 'sarah@integratd.com', phone: '555-0124', address: '456 Tech Blvd' },
+const BoardBuilder = ({ onBack }: { onBack: () => void }) => {
+  const [rails, setRails] = useState<{ id: number; items: { comp: LoxoneComponent; instanceId: string }[] }[]>([
+    { id: 1, items: [] },
+    { id: 2, items: [] },
+    { id: 3, items: [] },
+    { id: 4, items: [] },
   ]);
+  const [zoom, setZoom] = useState(1);
+
+  const handleDrop = (railId: number, componentId: string) => {
+     const component = LOXONE_CATALOG.find(c => c.id === componentId);
+     if (!component) return;
+     setRails(prev => prev.map(rail => {
+       if (rail.id === railId) {
+         const currentWidth = rail.items.reduce((sum, item) => sum + item.comp.width, 0);
+         if (currentWidth + component.width > 24) {
+            alert('Not enough space on this rail (Max 24 TE).');
+            return rail;
+         }
+         return { ...rail, items: [...rail.items, { comp: component, instanceId: Date.now().toString() }] };
+       }
+       return rail;
+     }));
+  };
+
+  const removeFromRail = (railId: number, instanceId: string) => {
+      setRails(prev => prev.map(rail => {
+          if (rail.id === railId) return { ...rail, items: rail.items.filter(i => i.instanceId !== instanceId) };
+          return rail;
+      }));
+  };
+
+  const totalPower = rails.flatMap(r => r.items).reduce((sum, i) => sum + i.comp.power, 0);
+  const totalModules = rails.flatMap(r => r.items).length;
+
+  return (
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-950 animate-in fade-in duration-300">
+       <div className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between px-6 shrink-0">
+          <div className="flex items-center gap-4">
+            <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300">
+               <ArrowLeft size={20} />
+            </button>
+            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Loxone Board Builder</h2>
+          </div>
+          <div className="flex gap-4 text-sm items-center">
+             <div className="px-3 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg">
+                <span className="font-bold">{totalModules}</span> Modules
+             </div>
+             <div className="px-3 py-1 bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 rounded-lg">
+                <span className="font-bold">{totalPower.toFixed(1)}W</span> Consumption
+             </div>
+             <div className="flex bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+                 <button onClick={() => setZoom(prev => Math.min(prev + 0.1, 1.5))} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"><ZoomIn size={16}/></button>
+                 <button onClick={() => setZoom(prev => Math.max(prev - 0.1, 0.5))} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded"><ZoomOut size={16}/></button>
+             </div>
+          </div>
+       </div>
+       <div className="flex-1 flex overflow-hidden">
+          <div className="w-72 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 overflow-y-auto p-4">
+             <h3 className="font-bold text-slate-500 uppercase text-xs mb-4">Components</h3>
+             <div className="space-y-3">
+                {LOXONE_CATALOG.map(comp => (
+                   <div 
+                     key={comp.id} 
+                     draggable 
+                     onDragStart={(e) => e.dataTransfer.setData('componentId', comp.id)}
+                     className="p-3 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 cursor-grab active:cursor-grabbing hover:border-green-500 transition-colors group"
+                   >
+                      <div className="flex justify-between items-center mb-1">
+                         <span className="font-bold text-sm text-slate-900 dark:text-white">{comp.name}</span>
+                         <span className="text-[10px] bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">{comp.width} TE</span>
+                      </div>
+                      <div className="text-xs text-slate-500">{comp.type} • {comp.power}W</div>
+                   </div>
+                ))}
+             </div>
+          </div>
+          <div className="flex-1 bg-slate-100 dark:bg-slate-950 p-8 overflow-y-auto flex justify-center">
+             <div className="w-full max-w-4xl" style={{ transform: `scale(${zoom})`, transformOrigin: 'top center', transition: 'transform 0.2s' }}>
+                 <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl border border-slate-300 dark:border-slate-700 overflow-hidden">
+                    <div className="bg-slate-200 dark:bg-slate-800 p-3 border-b border-slate-300 dark:border-slate-700 text-center font-bold text-slate-600 dark:text-slate-400 text-sm uppercase tracking-widest">
+                       Main Automation Cabinet (4 Row / 96 TE)
+                    </div>
+                    <div className="p-8 space-y-8 bg-slate-100 dark:bg-slate-950/50 relative">
+                       <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: 'radial-gradient(#000 1px, transparent 1px)', backgroundSize: '10px 10px' }}></div>
+                       {rails.map(rail => (
+                          <div 
+                            key={rail.id}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={(e) => handleDrop(rail.id, e.dataTransfer.getData('componentId'))}
+                            className="relative h-32 bg-slate-200/50 dark:bg-slate-800/30 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg flex items-center px-4 transition-all hover:border-green-400"
+                          >
+                             <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-6 bg-slate-300 dark:bg-slate-600 shadow-inner border-y border-slate-400 dark:border-slate-500"></div>
+                             <div className="relative z-10 flex h-24 items-center">
+                                {rail.items.map((item, idx) => (
+                                   <div 
+                                     key={item.instanceId}
+                                     className={`h-full ${item.comp.color} text-white rounded shadow-lg flex flex-col items-center justify-center relative group border-b-4 border-black/20 hover:scale-105 transition-transform z-10`}
+                                     style={{ width: `${item.comp.width * 18}px`, marginRight: '1px' }}
+                                     title={item.comp.name}
+                                   >
+                                      <div className="text-[9px] font-bold text-center leading-tight px-1 truncate w-full opacity-80">{item.comp.name}</div>
+                                      <div className="w-2 h-2 bg-black/30 rounded-full mt-2"></div>
+                                      <button 
+                                        onClick={() => removeFromRail(rail.id, item.instanceId)}
+                                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm z-20"
+                                      >
+                                        <X size={10} />
+                                      </button>
+                                   </div>
+                                ))}
+                             </div>
+                             <div className="absolute right-2 bottom-2 text-[10px] text-slate-400 font-mono">Row {rail.id}</div>
+                          </div>
+                       ))}
+                    </div>
+                 </div>
+             </div>
+          </div>
+       </div>
+    </div>
+  );
+};
+
+const AdminPanel = ({ users, setUsers, currentUser }: { users: User[], setUsers: any, currentUser: User }) => {
+  const [activeTab, setActiveTab] = useState<'users' | 'permissions' | 'activity'>('users');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editItem, setEditItem] = useState<any>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
 
-  const filterRole = subCategory === 'All' || !subCategory ? '' : subCategory?.slice(0, -1);
-  const filteredPeople = people.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = !filterRole || p.role.includes(filterRole) || (filterRole === 'Contact' && true);
-    return matchesSearch && matchesCategory;
-  });
+  const activeUsers = users.filter(u => u.status === 'Active').length;
+  const adminUsers = users.filter(u => u.role === UserRole.ADMIN).length;
 
-  const handleEdit = (p: any) => {
-    setEditItem(p);
-    setIsModalOpen(true);
-  };
+  const handleSaveUser = (formData: any) => {
+    // Generate permissions based on role if not customizing
+    const defaultPermissions = AVAILABLE_MODULES.map(m => ({
+      module: m.permission,
+      access: formData.role === 'ADMIN' || (formData.role === 'MANAGER' && m.id !== 'admin') || (formData.role === 'TECHNICIAN' && ['crm', 'canvas', 'mapping', 'cad'].includes(m.id)) || (formData.role === 'SALES' && ['crm', 'quotes'].includes(m.id))
+    }));
 
-  const handleAddNew = () => {
-    setEditItem(null);
-    setIsModalOpen(true);
-  };
+    // Add sub-permissions based on role
+    if (formData.role === 'ADMIN') {
+        defaultPermissions.push({ module: 'admin', access: true });
+    }
+    
+    // Merge custom permissions if provided (handling the checkboxes from modal)
+    const finalPermissions = PERMISSION_KEYS.map(pk => ({
+       module: pk.desc,
+       access: formData[`perm_${pk.key}`] !== undefined ? formData[`perm_${pk.key}`] : defaultPermissions.find(dp => dp.module === pk.desc)?.access || false
+    }));
 
-  const savePerson = () => {
-    if (editItem) {
-      // Logic to update would go here
+    if (editingUser) {
+      setUsers(users.map((u) => u.id === editingUser.id ? { ...u, ...formData, permissions: finalPermissions } : u));
     } else {
-      // Logic to add new
-      setPeople([...people, { id: Date.now(), name: 'New User', role: 'Contact', company: 'New Co', contact: 'email@new.com', phone: '', address: '' }]);
+      const newUser: User = {
+        id: Date.now().toString(),
+        name: formData.name,
+        email: formData.email || `${formData.name.toLowerCase().replace(' ', '.')}@integratdliving.com`,
+        role: formData.role,
+        status: 'Active',
+        lastLogin: 'Never',
+        permissions: finalPermissions
+      };
+      setUsers([...users, newUser]);
     }
     setIsModalOpen(false);
+    setEditingUser(null);
   };
 
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'People Directory'}</h2>
-          <p className="text-slate-500 text-sm">Manage your {subCategory?.toLowerCase() || 'contacts'}</p>
-        </div>
-        <button onClick={handleAddNew} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all">
-          <Plus size={18} /> Add {filterRole || 'Person'}
-        </button>
-      </div>
+  const handleDeleteUser = (id: string) => {
+    if (confirm('Are you sure you want to delete this user?')) {
+      setUsers(users.filter(u => u.id !== id));
+    }
+  };
 
-      <div className="grid grid-cols-1 gap-3">
-        {filteredPeople.length > 0 ? filteredPeople.map((p) => (
-          <ListItem 
-            key={p.id}
-            title={p.name}
-            subtitle={`${p.company} • ${p.contact}`}
-            badge={p.role}
-            badgeColor="bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
-            onDelete={() => setPeople(people.filter(x => x.id !== p.id))}
-            onEdit={() => handleEdit(p)}
-          />
-        )) : (
-          <div className="p-12 text-center border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl text-slate-400">
-            No {subCategory?.toLowerCase()} found. Click "Add" to create one.
-          </div>
-        )}
-      </div>
+  const openEditModal = (user: User) => {
+    setEditingUser(user);
+    setIsModalOpen(true);
+  };
 
-      <ItemModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={editItem ? "Edit Person" : "Add New Person"}
-        onSave={savePerson}
-        initialData={editItem}
-        fields={[
-          { label: 'Full Name', key: 'name', placeholder: 'e.g. John Doe' },
-          { label: 'Company', key: 'company', placeholder: 'e.g. Acme Corp' },
-          { label: 'Email Address', key: 'contact', placeholder: 'e.g. john@example.com' },
-          { label: 'Phone Number', key: 'phone', placeholder: 'e.g. 555-0123' },
-          { label: 'Role', key: 'role', type: 'select', options: ['Customer', 'Employee', 'Supplier', 'Contractor', 'Contact'] },
-          { label: 'Notes', key: 'notes', type: 'textarea', placeholder: 'Additional details...' }
-        ]}
-      />
-    </div>
-  );
-};
+  const openCreateModal = () => {
+    setEditingUser(null);
+    setIsModalOpen(true);
+  };
 
-const QuotesView = ({ searchQuery, subCategory }: { searchQuery: string, subCategory?: string }) => {
-  const [quotes, setQuotes] = useState([
-    { id: 1, title: 'Smart Home Upgrade', client: 'Smith Residence', amount: '$14,250', status: 'Open' },
-    { id: 2, title: 'Lighting Retrofit', client: 'Jones Office', amount: '$5,500', status: 'Sent' },
-  ]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  const filterStatus = subCategory === 'Supplier Quotes' ? 'Supplier' : subCategory;
-  const filtered = quotes.filter(q => !filterStatus || q.status === filterStatus);
-
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center">
-        <div>
-           <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'All Quotes'}</h2>
-           <p className="text-slate-500 text-sm">Track and manage your quotes</p>
-        </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-600 text-white hover:bg-yellow-700 shadow-lg shadow-yellow-600/20 transition-all">
-          <Plus size={18} /> Create Quote
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map((q) => (
-          <div key={q.id} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all group relative">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl text-yellow-600 dark:text-yellow-500">
-                <FileText size={20} />
-              </div>
-              <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                q.status === 'Open' ? 'bg-green-100 text-green-700' : 
-                q.status === 'Expired' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
-              }`}>
-                {q.status}
-              </span>
-            </div>
-            <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-1">{q.title}</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">Client: {q.client}</p>
-            <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-700">
-              <span className="font-bold text-slate-900 dark:text-white">{q.amount}</span>
-              <div className="flex gap-2">
-                 <button onClick={() => setQuotes(quotes.filter(x => x.id !== q.id))} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><Trash2 size={16} /></button>
-                 <button onClick={() => setIsModalOpen(true)} className="p-2 text-slate-400 hover:text-blue-500 transition-colors"><Edit2 size={16} /></button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <ItemModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Create / Edit Quote"
-        onSave={() => setIsModalOpen(false)}
-        fields={[
-          { label: 'Project Title', key: 'title', placeholder: 'e.g. Main Residence Automation' },
-          { label: 'Client Name', key: 'client', placeholder: 'e.g. Smith Family' },
-          { label: 'Total Amount', key: 'amount', type: 'number', placeholder: '0.00' },
-          { label: 'Status', key: 'status', type: 'select', options: ['Draft', 'Open', 'Sent', 'Approved', 'Expired'] },
-          { label: 'Quote Details', key: 'details', type: 'textarea', placeholder: 'Scope of work...' }
-        ]}
-      />
-    </div>
-  );
-};
-
-const ProjectsView = ({ searchQuery, subCategory }: { searchQuery: string, subCategory?: string }) => {
-  const [projects, setProjects] = useState([
-    { id: 1, title: 'Smith Residence', client: 'John Smith', status: 'Active', completion: 65, deadline: 'Dec 20, 2024' },
-    { id: 2, title: 'Acme HQ Automation', client: 'Acme Corp', status: 'Planning', completion: 15, deadline: 'Jan 15, 2025' },
-    { id: 3, title: 'Westside Apartments', client: 'Westside Dev', status: 'Review', completion: 95, deadline: 'Nov 30, 2024' }
-  ]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  const filtered = projects.filter(p => {
-    const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = !subCategory || p.status === subCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'All Projects'}</h2>
-          <p className="text-slate-500 text-sm">Manage your ongoing installations</p>
-        </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all">
-          <Plus size={18} /> New Project
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filtered.map((p) => (
-          <div key={p.id} className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm hover:shadow-md transition-all group">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                  <Folder size={20} />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-900 dark:text-white leading-tight">{p.title}</h3>
-                  <p className="text-xs text-slate-500">{p.client}</p>
-                </div>
-              </div>
-              <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                p.status === 'Active' ? 'bg-blue-100 text-blue-700' : 
-                p.status === 'Planning' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'
-              }`}>
-                {p.status}
-              </span>
-            </div>
-            
-            <div className="mb-4">
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-slate-500">Progress</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300">{p.completion}%</span>
-              </div>
-              <div className="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-                <div className="bg-blue-500 h-full rounded-full transition-all duration-500" style={{ width: `${p.completion}%` }}></div>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center pt-4 border-t border-slate-100 dark:border-slate-700">
-              <div className="flex items-center gap-1 text-xs text-slate-500">
-                <Clock size={14} />
-                <span>Due: {p.deadline}</span>
-              </div>
-              <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors">
-                <MoreVertical size={16} />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <ItemModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="New Project"
-        onSave={() => setIsModalOpen(false)}
-        fields={[
-          { label: 'Project Title', key: 'title', placeholder: 'e.g. Downtown Office' },
-          { label: 'Client', key: 'client', placeholder: 'Client Name' },
-          { label: 'Status', key: 'status', type: 'select', options: ['Planning', 'Active', 'Review', 'Archived'] },
-          { label: 'Deadline', key: 'deadline', type: 'date' },
-          { label: 'Description', key: 'desc', type: 'textarea' }
-        ]}
-      />
-    </div>
-  );
-};
-
-const JobsView = ({ subCategory }: { subCategory?: string }) => {
-  const [jobs, setJobs] = useState([
-    { id: 1, title: 'Living Room Automation', status: 'In Progress', due: 'Tomorrow', notes: 'Finish wiring' },
-  ]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'Jobs'}</h2>
-        </div>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700">
-          <Plus size={18} /> New Job
-        </button>
-      </div>
-      <div className="grid gap-3">
-        {jobs.map(job => (
-          <ListItem 
-             key={job.id}
-             title={job.title}
-             subtitle={`Due: ${job.due}`}
-             badge={job.status}
-             badgeColor="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-             onDelete={() => setJobs(jobs.filter(j => j.id !== job.id))}
-             onEdit={() => setIsModalOpen(true)}
-          />
-        ))}
-      </div>
-      <ItemModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Manage Job"
-        onSave={() => setIsModalOpen(false)}
-        fields={[
-          { label: 'Job Title', key: 'title' },
-          { label: 'Due Date', key: 'due', type: 'date' },
-          { label: 'Status', key: 'status', type: 'select', options: ['Pending', 'In Progress', 'Finished'] },
-          { label: 'Description', key: 'notes', type: 'textarea' }
-        ]}
-      />
-    </div>
-  );
-};
-
-const CalendarView = ({ subCategory }: { subCategory?: string }) => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  return (
-    <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'Schedule'}</h2>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
-          <Plus size={18} /> Add Event
-        </button>
-      </div>
-      {/* Simplified Calendar Visual */}
-      <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-6 overflow-hidden">
-         <div className="grid grid-cols-7 gap-px bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg h-full">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-              <div key={day} className="bg-slate-50 dark:bg-slate-800 p-2 text-center text-xs font-bold text-slate-500">{day}</div>
-            ))}
-            {Array.from({length: 35}).map((_, i) => (
-              <div key={i} className="bg-white dark:bg-slate-900 p-2 relative hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer group border-b border-r border-slate-50 dark:border-slate-800">
-                <span className={`text-xs ${i === 14 ? 'bg-blue-600 text-white w-6 h-6 flex items-center justify-center rounded-full' : 'text-slate-400'}`}>{i + 1}</span>
-              </div>
-            ))}
-         </div>
-      </div>
-      <ItemModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Add Event"
-        onSave={() => setIsModalOpen(false)}
-        fields={[
-          { label: 'Event Title', key: 'title' },
-          { label: 'Date', key: 'date', type: 'date' },
-          { label: 'Type', key: 'type', type: 'select', options: ['Meeting', 'Install', 'Service Call'] },
-          { label: 'Details', key: 'details', type: 'textarea' }
-        ]}
-      />
-    </div>
-  );
-};
-
-const MaterialsView = ({ subCategory }: { subCategory?: string }) => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'Inventory'}</h2>
-        <button onClick={() => setIsModalOpen(true)} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
-          <Plus size={18} /> Add Item
-        </button>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden group shadow-sm hover:shadow-md transition-all">
-              <div className="h-32 bg-slate-100 dark:bg-slate-700 relative flex items-center justify-center">
-                <Package className="text-slate-300 dark:text-slate-600 w-12 h-12" />
-              </div>
-              <div className="p-4">
-                <h3 className="font-bold text-slate-900 dark:text-white">Item #{i}</h3>
-                <div className="mt-4 flex gap-2">
-                   <button onClick={() => setIsModalOpen(true)} className="flex-1 py-1.5 bg-slate-100 dark:bg-slate-700 rounded text-xs font-bold">Edit</button>
-                   <button className="flex-1 py-1.5 text-red-500 rounded text-xs font-bold">Delete</button>
-                </div>
-              </div>
-            </div>
+  const renderPermissionsTab = () => (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div>
+        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Available Permissions</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {PERMISSION_KEYS.map((perm) => (
+             <div key={perm.key} className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
+               <div className="font-bold text-slate-900 dark:text-white">{perm.label}</div>
+               <div className="text-xs text-slate-500 font-mono">{perm.desc}</div>
+             </div>
           ))}
+        </div>
       </div>
-      <ItemModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Manage Stock Item"
-        onSave={() => setIsModalOpen(false)}
-        fields={[
-          { label: 'Item Name', key: 'name' },
-          { label: 'SKU', key: 'sku' },
-          { label: 'Quantity', key: 'qty', type: 'number' },
-          { label: 'Location', key: 'location', type: 'select', options: ['Sydney', 'Melbourne'] }
-        ]}
-      />
+      
+      <div>
+        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">CRM Sub-Permissions</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {CRM_SUB_PERMISSIONS.map((perm) => (
+             <div key={perm.key} className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-100 dark:border-green-900/30">
+               <div className="font-bold text-slate-900 dark:text-white">{perm.label}</div>
+               <div className="text-xs text-slate-500 font-mono">{perm.key}</div>
+             </div>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Role Definitions</h3>
+        <div className="space-y-4">
+           <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg">
+              <span className="font-bold text-slate-900 dark:text-white">Administrator (admin)</span>
+              <p className="text-sm text-slate-500 mt-1">Full access to all modules including Admin Panel.</p>
+           </div>
+           <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg">
+              <span className="font-bold text-slate-900 dark:text-white">Manager (manager)</span>
+              <p className="text-sm text-slate-500 mt-1">Access to all operational modules, no access to Admin Panel or Global Settings.</p>
+           </div>
+           <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg">
+              <span className="font-bold text-slate-900 dark:text-white">Technician (technician)</span>
+              <p className="text-sm text-slate-500 mt-1">Restricted access to technical modules (Canvas, Mapping, CAD) and limited CRM view.</p>
+           </div>
+           <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-lg">
+              <span className="font-bold text-slate-900 dark:text-white">Viewer (viewer)</span>
+              <p className="text-sm text-slate-500 mt-1">Read-only access to dashboards.</p>
+           </div>
+        </div>
+      </div>
     </div>
   );
-};
-
-const PaymentsView = ({ subCategory }: { subCategory?: string }) => {
-  const [direction, setDirection] = useState<'inbound' | 'outbound'>('inbound');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [invoices, setInvoices] = useState([
-    { id: 1, ref: 'INV-2024-001', entity: 'Smith Residence', amount: '$12,500', date: 'Due Nov 25', status: 'Due', dir: 'inbound' },
-    { id: 2, ref: 'INV-2024-002', entity: 'Jones Office', amount: '$4,200', date: 'Paid Oct 12', status: 'Paid', dir: 'inbound' },
-  ]);
-
-  const filterStatus = subCategory && !['Payments', 'To Us', 'To Suppliers'].includes(subCategory) ? subCategory : null;
-  
-  const filtered = invoices.filter(inv => {
-    const dirMatch = inv.dir === direction;
-    const statusMatch = filterStatus ? inv.status === filterStatus : true;
-    return dirMatch && statusMatch;
-  });
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{subCategory || 'Payments'}</h2>
-        </div>
-        <button onClick={() => setShowAddModal(true)} className="btn-primary flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700">
-          <Plus size={18} /> New Invoice
-        </button>
-      </div>
+    <div className="flex h-full bg-slate-50 dark:bg-slate-900 animate-in fade-in duration-300">
+       {/* Admin Sidebar */}
+       <div className="w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col">
+          <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2 text-slate-700 dark:text-slate-200 font-bold text-lg">
+             <UserCircle className="w-6 h-6" />
+             Admin Panel
+          </div>
+          <nav className="p-4 space-y-1 flex-1">
+             <div className="text-xs font-bold text-slate-400 uppercase mb-2 px-3 tracking-wider">Management</div>
+             <button 
+               onClick={() => setActiveTab('users')}
+               className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-3 transition-colors ${activeTab === 'users' ? 'bg-green-600 text-white shadow-lg shadow-green-900/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+             >
+               <Users size={18} /> User Management
+             </button>
+             <button 
+               onClick={() => setActiveTab('permissions')}
+               className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-3 transition-colors ${activeTab === 'permissions' ? 'bg-green-600 text-white shadow-lg shadow-green-900/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+             >
+               <Key size={18} /> Permissions
+             </button>
+             <button 
+               onClick={() => setActiveTab('activity')}
+               className={`w-full text-left px-3 py-2 rounded-lg flex items-center gap-3 transition-colors ${activeTab === 'activity' ? 'bg-green-600 text-white shadow-lg shadow-green-900/20' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+             >
+               <BarChart3 size={18} /> Activity Log
+             </button>
+          </nav>
+       </div>
 
-      <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl w-fit">
-        <button 
-          onClick={() => setDirection('inbound')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${direction === 'inbound' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}
-        >
-          To Us (Inbound)
-        </button>
-        <button 
-          onClick={() => setDirection('outbound')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${direction === 'outbound' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500'}`}
-        >
-          To Suppliers (Outbound)
-        </button>
-      </div>
+       {/* Main Admin Content */}
+       <div className="flex-1 p-8 overflow-y-auto">
+          {activeTab === 'users' && (
+             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div>
+                   <h2 className="text-3xl font-bold text-slate-900 dark:text-white">User Management</h2>
+                   <p className="text-slate-500 dark:text-slate-400 mt-1">Create and manage user accounts with role-based permissions</p>
+                </div>
 
-      <div className="space-y-3">
-        {filtered.map(inv => (
-          <ListItem 
-            key={inv.id}
-            title={inv.ref} 
-            subtitle={`${inv.entity} • ${inv.date} • ${inv.amount}`} 
-            badge={inv.status} 
-            badgeColor={inv.status === 'Paid' ? 'bg-green-100 text-green-600' : inv.status === 'Due' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'} 
-            onDelete={() => setInvoices(invoices.filter(i => i.id !== inv.id))} 
-            onEdit={() => setShowAddModal(true)} 
-          />
-        ))}
-      </div>
+                {/* KPI Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                   <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                      <div className="text-4xl font-bold text-slate-900 dark:text-white mb-1">{users.length}</div>
+                      <div className="text-sm text-slate-500">Total Users</div>
+                   </div>
+                   <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                      <div className="text-4xl font-bold text-slate-900 dark:text-white mb-1">{activeUsers}</div>
+                      <div className="text-sm text-slate-500">Active Users</div>
+                   </div>
+                   <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                      <div className="text-4xl font-bold text-slate-900 dark:text-white mb-1">{adminUsers}</div>
+                      <div className="text-sm text-slate-500">Administrators</div>
+                   </div>
+                </div>
 
-      <ItemModal 
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        title="New Invoice"
-        onSave={() => setShowAddModal(false)}
-        fields={[
-           { label: 'Invoice Ref', key: 'ref' },
-           { label: 'Amount', key: 'amount', type: 'number' },
-           { label: 'Due Date', key: 'date', type: 'date' },
-           { label: 'Status', key: 'status', type: 'select', options: ['Draft', 'Pending', 'Due', 'Paid'] }
-        ]}
-      />
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                   <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800">
+                      <h3 className="text-xl font-bold text-slate-900 dark:text-white">All Users</h3>
+                      <button onClick={openCreateModal} className="bg-green-700 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-colors shadow-lg shadow-green-900/20">
+                         <Plus size={16} /> Create User
+                      </button>
+                   </div>
+                   <table className="w-full text-left">
+                      <thead className="bg-slate-50 dark:bg-slate-900/50 text-xs uppercase font-bold text-slate-500 dark:text-slate-400">
+                         <tr>
+                            <th className="px-6 py-4">Name</th>
+                            <th className="px-6 py-4">Display Name</th>
+                            <th className="px-6 py-4">Role</th>
+                            <th className="px-6 py-4">Status</th>
+                            <th className="px-6 py-4">Last Login</th>
+                            <th className="px-6 py-4">Actions</th>
+                         </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                         {users.map(user => (
+                            <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                               <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">{user.name}</td>
+                               <td className="px-6 py-4 text-slate-600 dark:text-slate-300">{user.name}</td>
+                               <td className="px-6 py-4">
+                                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${user.role === 'ADMIN' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
+                                    {user.role.toLowerCase()}
+                                  </span>
+                               </td>
+                               <td className="px-6 py-4">
+                                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${user.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                     {user.status}
+                                  </span>
+                               </td>
+                               <td className="px-6 py-4 text-slate-500 text-sm">{user.lastLogin}</td>
+                               <td className="px-6 py-4 flex gap-2">
+                                  <button onClick={() => openEditModal(user)} className="px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-md text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Edit</button>
+                                  <button onClick={() => handleDeleteUser(user.id)} className="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-md text-xs font-bold hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors">Delete</button>
+                               </td>
+                            </tr>
+                         ))}
+                      </tbody>
+                   </table>
+                </div>
+             </div>
+          )}
+
+          {activeTab === 'permissions' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="mb-8">
+                 <h2 className="text-3xl font-bold text-slate-900 dark:text-white">Permissions Overview</h2>
+                 <p className="text-slate-500 dark:text-slate-400 mt-1">View and manage system permissions</p>
+              </div>
+              {renderPermissionsTab()}
+            </div>
+          )}
+          
+          {activeTab === 'activity' && (
+             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-4">Activity Log</h2>
+                <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl text-center text-slate-400 border border-slate-200 dark:border-slate-700">
+                   <History className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                   <p>No recent activity to display</p>
+                </div>
+             </div>
+          )}
+       </div>
+
+       {/* Modal for User Edit/Create */}
+       <ItemModal
+         isOpen={isModalOpen}
+         onClose={() => setIsModalOpen(false)}
+         title={editingUser ? "Edit User" : "Create New User"}
+         initialData={editingUser ? {
+            name: editingUser.name,
+            role: editingUser.role,
+            ...editingUser.permissions.reduce((acc, p) => ({ ...acc, [`perm_${PERMISSION_KEYS.find(k => k.desc === p.module)?.key || p.module}`]: p.access }), {})
+         } : { role: 'Viewer' }}
+         onSave={handleSaveUser}
+         fields={[
+           { key: 'name', label: 'Name *', placeholder: 'e.g., John Doe' },
+           { key: 'displayName', label: 'Display Name *', placeholder: 'e.g., John Smith' },
+           { key: 'accessCode', label: 'Access Code *', placeholder: '4-6 digit code' },
+           { key: 'role', label: 'Role *', type: 'select', options: ['ADMIN', 'MANAGER', 'TECHNICIAN', 'SALES', 'VIEWER'] },
+           { 
+              key: 'permissions', 
+              label: 'Permissions', 
+              type: 'custom', 
+              render: (data: any, handleChange: any) => (
+                 <div className="space-y-2">
+                    <div className="text-xs text-slate-500 mb-2">Select role above to auto-fill permissions, or customize individually</div>
+                    <div className="grid grid-cols-2 gap-3">
+                       {PERMISSION_KEYS.map(perm => (
+                          <label key={perm.key} className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 border border-transparent hover:border-slate-100 dark:hover:border-slate-700 cursor-pointer">
+                             <input 
+                               type="checkbox" 
+                               checked={data[`perm_${perm.key}`] || false}
+                               onChange={(e) => handleChange(`perm_${perm.key}`, e.target.checked)}
+                               className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                             />
+                             <span className="text-sm text-slate-700 dark:text-slate-300">{perm.label}</span>
+                          </label>
+                       ))}
+                    </div>
+                 </div>
+              )
+           }
+         ]}
+       />
     </div>
   );
 };
 
-const CRMDashboard = ({ searchQuery }: { searchQuery: string }) => {
-  const [activeView, setActiveView] = useState<string>('overview');
-  const [subCategory, setSubCategory] = useState<string | undefined>(undefined);
-  const [analyticsType, setAnalyticsType] = useState<string | null>(null);
+// --- Main App Component ---
+const App = () => {
+  const [currentView, setCurrentView] = useState<ViewState>('dashboard');
+  const [currentCrmView, setCurrentCrmView] = useState<CRMViewState>('overview');
+  const [expandedCategory, setExpandedCategory] = useState<string | null>('Main');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isAIAssistantOpen, setIsAIAssistantOpen] = useState(false);
+  const [isAIMinimized, setIsAIMinimized] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Simulated Auth State
+  const [currentUser, setCurrentUser] = useState<User>({
+    id: '1',
+    name: 'Admin',
+    email: 'admin@integratdliving.com',
+    role: UserRole.ADMIN,
+    status: 'Active',
+    lastLogin: '21/11/2025',
+    permissions: AVAILABLE_MODULES.map(m => ({ module: m.permission, access: true })).concat([{ module: 'admin', access: true }])
+  });
 
-  const navItems = [
-    { id: 'people', label: 'People', icon: Users, sub: ['Employees', 'Customers', 'Suppliers', 'Contractors', 'Contacts'] },
-    { id: 'quotes', label: 'Quotes', icon: FileText, sub: ['Open', 'Expired', 'Sent', 'Supplier Quotes'] },
-    { id: 'jobs', label: 'Jobs', icon: Briefcase, sub: ['In Progress', 'Upcoming', 'Pending', 'Finished', 'Recurring'] },
-    { id: 'projects', label: 'Projects', icon: Folder, sub: ['Planning', 'Active', 'Review', 'Archived'] },
-    { id: 'schedules', label: 'Schedules', icon: CalendarIcon, sub: ['Calendar', 'Timeline', 'Shifts'] },
-    { id: 'stock', label: 'Materials', icon: Package, sub: ['Stock', 'Orders', 'Suppliers'] },
-    { id: 'payments', label: 'Payments', icon: CreditCard, sub: ['Upcoming', 'Pending', 'Due', 'Paid', 'Credits', 'Retentions'] },
-  ];
+  const [users, setUsers] = useState<User[]>([
+    {
+      id: '1',
+      name: 'Admin',
+      email: 'admin@integratdliving.com',
+      role: UserRole.ADMIN,
+      status: 'Active',
+      lastLogin: '21/11/2025',
+      permissions: AVAILABLE_MODULES.map(m => ({ module: m.permission, access: true })).concat([{ module: 'admin', access: true }])
+    }
+  ]);
 
-  const handleNavClick = (viewId: string, sub?: string) => {
-    setActiveView(viewId);
-    setSubCategory(sub);
-    setAnalyticsType(null);
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
+  // Check permissions helper
+  const hasAccess = (permissionKey: string) => {
+    if (permissionKey === 'dashboard') return true;
+    // Admins always have access
+    if (currentUser.role === UserRole.ADMIN) return true;
+    
+    const perm = currentUser.permissions.find(p => p.module === permissionKey);
+    return perm ? perm.access : false;
+  };
+
+  const handleLogout = () => {
+    alert("Logged out successfully.");
+    // In real app, clear token and redirect
+  };
+
+  const toggleCategory = (category: string) => {
+    setExpandedCategory(expandedCategory === category ? null : category);
   };
 
   const renderContent = () => {
-    if (analyticsType) {
-      return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-           <button onClick={() => setAnalyticsType(null)} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:hover:text-white mb-4 transition-colors">
-             <ArrowLeft size={18} /> Back to Overview
-           </button>
-           <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-sm border border-slate-100 dark:border-slate-700">
-             <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">{analyticsType} Analytics</h2>
-             {analyticsType === 'Revenue' && <RevenueChart />}
-             {analyticsType === 'Projects' && <ProjectsChart />}
-             {analyticsType === 'Team' && <TeamChart />}
-             {analyticsType === 'Quotes' && <div className="h-64 flex items-center justify-center text-slate-400">Quote Pipeline Chart Component</div>}
-           </div>
-        </div>
-      );
+    // If checking CRM view specially
+    if (currentView === 'crm') {
+       if (!hasAccess('crm')) return <div className="p-10 text-center">Access Denied</div>;
+       
+       const CRM_NAV_ITEMS = [
+        {
+          category: 'Main',
+          items: [
+            { id: 'overview', label: 'Dashboard', icon: LayoutDashboard }
+          ]
+        },
+        {
+          category: 'People',
+          items: [
+            { id: 'employees', label: 'Employees', icon: UserCheck },
+            { id: 'clients', label: 'Customers', icon: Users },
+            { id: 'suppliers', label: 'Suppliers', icon: Truck },
+            { id: 'contractors', label: 'Contractors', icon: HardHat },
+            { id: 'contacts', label: 'Contacts', icon: Contact },
+          ]
+        },
+        {
+          category: 'Quotes',
+          items: [
+            { id: 'quotes_open', label: 'Open', icon: FileText },
+            { id: 'quotes_sent', label: 'Sent', icon: Send },
+            { id: 'quotes_expired', label: 'Expired', icon: Clock },
+            { id: 'quotes_supplier', label: 'Supplier Quotes', icon: Download },
+          ]
+        },
+        {
+          category: 'Jobs',
+          items: [
+            { id: 'jobs_progress', label: 'In Progress', icon: Loader },
+            { id: 'jobs_upcoming', label: 'Upcoming', icon: CalendarDays },
+            { id: 'jobs_pending', label: 'Pending', icon: PauseCircle },
+            { id: 'jobs_finished', label: 'Finished', icon: CheckSquare },
+            { id: 'jobs_recurring', label: 'Recurring', icon: Repeat },
+          ]
+        },
+        {
+          category: 'Schedules',
+          items: [
+            { id: 'calendar', label: 'Calendar', icon: CalendarIcon },
+          ]
+        },
+        {
+          category: 'Materials',
+          items: [
+            { id: 'inventory', label: 'Stock', icon: Package },
+            { id: 'orders', label: 'Orders', icon: ShoppingCart },
+          ]
+        },
+        {
+          category: 'Payments',
+          items: [
+            { id: 'payments_suppliers', label: 'To Suppliers', icon: ArrowUpRight },
+            { id: 'payments_us', label: 'To Us', icon: ArrowDownLeft },
+          ]
+        },
+        {
+          category: 'System',
+          items: [
+            { id: 'integrations', label: 'Integrations', icon: Link },
+            { id: 'settings', label: 'Settings', icon: Sliders },
+          ]
+        }
+      ];
+
+       return (
+         <div className="h-full flex bg-slate-50 dark:bg-slate-900 animate-in fade-in duration-300">
+            {/* CRM Sidebar */}
+            <div className="w-64 bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col shrink-0">
+               {/* Simplified Sidebar Header / Removal of specific "CRM [X]" per request, kept simple back */}
+               <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                  <button onClick={() => setCurrentView('dashboard')} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:hover:text-white text-sm font-bold">
+                     <ArrowLeft size={16} /> Back to Dashboard
+                  </button>
+               </div>
+               
+               <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+                  {CRM_NAV_ITEMS.map((section, idx) => (
+                    <div key={idx} className="mb-2">
+                      {section.category !== 'Main' ? (
+                        <button 
+                          onClick={() => toggleCategory(section.category)}
+                          className="w-full px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg transition-colors"
+                        >
+                           {section.category}
+                           {expandedCategory === section.category ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </button>
+                      ) : null}
+                      
+                      {/* Accordion Logic: Show if Main (always) or Expanded */}
+                      {(section.category === 'Main' || expandedCategory === section.category) && (
+                        <div className="space-y-0.5 mt-1 animate-in slide-in-from-top-1 duration-200">
+                            {section.items.map(item => (
+                            <button 
+                                key={item.id}
+                                onClick={() => setCurrentCrmView(item.id as CRMViewState)} 
+                                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${currentCrmView === item.id ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                            >
+                                <item.icon size={18} /> {item.label}
+                            </button>
+                            ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+               </nav>
+            </div>
+            
+            {/* CRM Content Area */}
+            <div className="flex-1 overflow-y-auto relative">
+               {currentCrmView === 'overview' && (
+                  <div className="p-8">
+                     <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Dashboard Overview</h2>
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <StatCard title="Total Revenue" value="$124,500" trend="+12.5%" icon={DollarSign} onClick={() => alert("Viewing Revenue Reports")} />
+                        <StatCard title="Active Projects" value="12" trend="+2" icon={Briefcase} onClick={() => setCurrentCrmView('jobs_progress')} />
+                        <StatCard title="New Leads" value="24" trend="+5" icon={UserCircle} onClick={() => setCurrentCrmView('clients')} />
+                        <StatCard title="Pending Quotes" value="8" icon={FileText} onClick={() => setCurrentView('quotes')} />
+                     </div>
+                  </div>
+               )}
+               {/* Jobs */}
+               {currentCrmView === 'jobs_progress' && <ProjectsView />}
+               
+               {/* People */}
+               {currentCrmView === 'clients' && (
+                   <div className="p-8 animate-in fade-in">
+                       <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Customers</h2>
+                       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                           <table className="w-full text-left">
+                               <thead className="bg-slate-50 dark:bg-slate-900/50 text-xs uppercase font-bold text-slate-500">
+                                   <tr>
+                                       <th className="px-6 py-4">Name</th>
+                                       <th className="px-6 py-4">Email</th>
+                                       <th className="px-6 py-4">Status</th>
+                                       <th className="px-6 py-4">Projects</th>
+                                   </tr>
+                               </thead>
+                               <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                                   {['John Smith', 'Sarah Connor', 'Bruce Wayne'].map(name => (
+                                       <tr key={name} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 cursor-pointer" onClick={() => alert(`Opening profile for ${name}`)}>
+                                           <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">{name}</td>
+                                           <td className="px-6 py-4 text-slate-500">{name.toLowerCase().replace(' ', '.')}@email.com</td>
+                                           <td className="px-6 py-4"><span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-bold">Active</span></td>
+                                           <td className="px-6 py-4 text-slate-500">2 Active</td>
+                                       </tr>
+                                   ))}
+                               </tbody>
+                           </table>
+                       </div>
+                   </div>
+               )}
+
+               {/* Schedules */}
+               {currentCrmView === 'calendar' && <CalendarView />}
+
+               {/* Materials */}
+               {currentCrmView === 'inventory' && <InventoryView />}
+               
+               {/* Generic Views for unimplemented sections */}
+               {['employees', 'suppliers', 'contractors', 'contacts'].includes(currentCrmView) && (
+                 <GenericCRMList title={currentCrmView.charAt(0).toUpperCase() + currentCrmView.slice(1)} type={currentCrmView} icon={Users} />
+               )}
+               
+               {['quotes_open', 'quotes_sent', 'quotes_expired', 'quotes_supplier'].includes(currentCrmView) && (
+                 <GenericCRMList title={currentCrmView.replace('quotes_', '').charAt(0).toUpperCase() + currentCrmView.replace('quotes_', '').slice(1) + ' Quotes'} type="quote" icon={FileText} />
+               )}
+               
+               {['jobs_upcoming', 'jobs_pending', 'jobs_finished', 'jobs_recurring'].includes(currentCrmView) && (
+                 <GenericCRMList title={currentCrmView.replace('jobs_', '').charAt(0).toUpperCase() + currentCrmView.replace('jobs_', '').slice(1) + ' Jobs'} type="job" icon={Briefcase} />
+               )}
+               
+               {currentCrmView === 'orders' && <GenericCRMList title="Orders" type="order" icon={ShoppingCart} />}
+               
+               {['payments_suppliers', 'payments_us'].includes(currentCrmView) && (
+                 <GenericCRMList title={currentCrmView === 'payments_suppliers' ? 'Payments to Suppliers' : 'Incoming Payments'} type="payment" icon={DollarSign} />
+               )}
+               
+               {currentCrmView === 'integrations' && <GenericCRMList title="Integrations" type="integration" icon={Link} />}
+               {currentCrmView === 'settings' && <GenericCRMList title="CRM Settings" type="setting" icon={Sliders} />}
+            </div>
+         </div>
+       );
     }
 
-    switch(activeView) {
-      case 'people': return <PeopleView searchQuery={searchQuery} subCategory={subCategory} />;
-      case 'quotes': return <QuotesView searchQuery={searchQuery} subCategory={subCategory} />;
-      case 'jobs': return <JobsView subCategory={subCategory} />;
-      case 'projects': return <ProjectsView searchQuery={searchQuery} subCategory={subCategory} />;
-      case 'schedules': return <CalendarView subCategory={subCategory} />;
-      case 'stock': return <MaterialsView subCategory={subCategory} />;
-      case 'payments': return <PaymentsView subCategory={subCategory} />;
-      default: 
+    switch (currentView) {
+      case 'mapping': return <ElectricalMapping onBack={() => setCurrentView('dashboard')} />;
+      case 'board': return <BoardBuilder onBack={() => setCurrentView('dashboard')} />;
+      case 'quotes': return <QuoteAutomation />;
+      case 'canvas': return <CanvasEditor />;
+      case 'ops': return <OperationsBoard />;
+      case 'cad': return <ElectricalCAD />;
+      case 'learning': return <AILearning />;
+      case 'admin': 
+        if (!hasAccess('admin')) return <div className="p-10 text-center">Access Denied</div>;
+        return <AdminPanel users={users} setUsers={setUsers} currentUser={currentUser} />;
+      case 'dashboard':
+      default:
+        // Dashboard Main Grid
+        const allowedModules = AVAILABLE_MODULES.filter(mod => 
+          hasAccess(mod.permission)
+        );
+        const filteredModules = allowedModules.filter(m => 
+          m.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+          m.desc.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+
         return (
-          <div className="space-y-8 animate-in fade-in duration-500">
-             <div className="flex items-end justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight mb-1">Overview</h1>
-                <p className="text-slate-500 dark:text-slate-400 text-sm">Welcome back, here's what's happening today.</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-               <StatCard title="Revenue" value="$128.5k" trend="+12.5%" icon={DollarSign} onClick={() => setAnalyticsType('Revenue')} />
-               <StatCard title="Active Projects" value="14" trend="+2" icon={Folder} onClick={() => setAnalyticsType('Projects')} />
-               <StatCard title="Pending Quotes" value="8" icon={FileText} onClick={() => setAnalyticsType('Quotes')} />
-               <StatCard title="Availability" value="85%" trend="-5%" icon={Clock} onClick={() => setAnalyticsType('Team')} />
-            </div>
+          <div className="p-8 max-w-7xl mx-auto animate-in fade-in duration-500">
+             {filteredModules.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                   {filteredModules.map((mod) => (
+                      <ModuleCard 
+                         key={mod.id}
+                         title={mod.title}
+                         icon={mod.icon}
+                         desc={mod.desc}
+                         color={mod.color}
+                         onClick={() => setCurrentView(mod.id as ViewState)}
+                      />
+                   ))}
+                </div>
+             ) : (
+                <div className="text-center py-20 flex flex-col items-center justify-center">
+                   <Shield className="w-16 h-16 text-slate-300 mb-4" />
+                   <h3 className="text-xl font-bold text-slate-500 mb-2">Access Restricted or No Results</h3>
+                   <p className="text-slate-400 max-w-md">
+                      You either don't have permission to view these modules, or no modules matched your search for "{searchQuery}".
+                   </p>
+                </div>
+             )}
           </div>
         );
     }
   };
 
   return (
-    <div className="flex h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-950 overflow-hidden relative">
-      <div className="w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col relative shrink-0 z-50" style={{ overflow: 'visible' }}>
-        <div className="p-4 pb-0 flex-1 flex flex-col">
-          <h2 className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 pl-3">Main Menu</h2>
-          <div className="space-y-0.5">
-            <button onClick={() => handleNavClick('overview')} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-200 ${activeView === 'overview' ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold' : ''}`}>
-               <div className="flex items-center gap-3"><LayoutDashboard className="w-4 h-4" /><span className="text-sm">Overview</span></div>
+    <div className={`flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden font-sans ${isDarkMode ? 'dark' : ''}`}>
+      
+      {/* Sidebar - Drawer Mode Global */}
+      <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 shadow-2xl transform transition-transform duration-300 ease-in-out ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <div className="h-16 flex items-center justify-between px-6 border-b border-slate-200 dark:border-slate-800">
+            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-green-600 to-emerald-600">
+               Integratd Living
+            </span>
+            <button onClick={() => setIsSidebarOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+               <X size={20} className="text-slate-500"/>
             </button>
-            {navItems.map((item) => (
-              <div key={item.id} className="group relative">
-                <button onClick={() => handleNavClick(item.id)} className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all duration-200 ${activeView === item.id ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold' : ''}`}>
-                  <div className="flex items-center gap-3"><item.icon className="w-4 h-4 opacity-70 group-hover:opacity-100" /><span className="text-sm">{item.label}</span></div>
-                  <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-50 -translate-x-2 group-hover:translate-x-0 transition-all" />
-                </button>
-                {/* Bridge to prevent mousegap */}
-                <div className="absolute left-full top-0 h-full w-4 bg-transparent"></div>
-                
-                <div className="absolute left-[calc(100%+8px)] top-0 w-48 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1 hidden group-hover:block animate-in fade-in slide-in-from-left-1 duration-200 z-[60]">
-                   <div className="px-3 py-2 text-[10px] font-bold text-slate-400 uppercase border-b border-slate-100 dark:border-slate-800 mb-1">{item.label}</div>
-                   {item.sub.map((subItem) => (
-                     <button key={subItem} onClick={(e) => { e.stopPropagation(); handleNavClick(item.id, subItem); }} className="w-full text-left px-3 py-2 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-between">
-                       {subItem}
-                     </button>
-                   ))}
-                </div>
-              </div>
+          </div>
+          <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-4rem)]">
+            <button 
+               onClick={() => { setCurrentView('dashboard'); setIsSidebarOpen(false); }}
+               className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+            >
+               <LayoutDashboard size={18} /> Dashboard
+            </button>
+            
+            <div className="pt-4 pb-2 px-3 text-xs font-bold text-slate-400 uppercase tracking-wider">Modules</div>
+            
+            {AVAILABLE_MODULES.filter(m => hasAccess(m.permission)).map(mod => (
+              <button 
+                 key={mod.id}
+                 onClick={() => { setCurrentView(mod.id as ViewState); setIsSidebarOpen(false); }}
+                 className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${currentView === mod.id ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+              >
+                 <mod.icon size={18} /> {mod.title}
+              </button>
             ))}
-          </div>
-        </div>
+          </nav>
       </div>
-      <div className="flex-1 overflow-y-auto p-8 scrollbar-thin">
-        <div className="max-w-7xl mx-auto">
-           {renderContent()}
-        </div>
-      </div>
-    </div>
-  );
-};
 
-const CanvasEditor = ({ project, onClose, initialItems = [], embedded = false, backgroundImage }: { project: string, onClose?: () => void, initialItems?: CanvasItem[], embedded?: boolean, backgroundImage?: string | null }) => {
-  const [items, setItems] = useState<CanvasItem[]>(initialItems);
-  const [draggedItem, setDraggedItem] = useState<string | null>(null);
-  const [selectedItem, setSelectedItem] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(100);
-  const canvasRef = useRef<HTMLDivElement>(null);
+      {/* Backdrop for Sidebar */}
+      {isSidebarOpen && (
+         <div className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)}></div>
+      )}
 
-  useEffect(() => {
-    if (initialItems.length > 0) setItems(initialItems);
-  }, [initialItems]);
-
-  const handleDrop = (e: React.DragEvent, type: string) => {
-    e.preventDefault();
-    const rect = canvasRef.current?.getBoundingClientRect();
-    if (rect) {
-      const x = (e.clientX - rect.left) / (zoom / 100); 
-      const y = (e.clientY - rect.top) / (zoom / 100);
-      const symbol = SYMBOLS.find(s => s.id === type);
-      setItems([...items, { 
-        id: Date.now().toString(), 
-        type: type as any, 
-        x, 
-        y, 
-        label: symbol?.label || 'Item', 
-        cost: symbol?.cost || 0 
-      }]);
-    }
-  };
-
-  const onCanvasMouseMove = (e: React.MouseEvent) => {
-    if (draggedItem && canvasRef.current) {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const scale = zoom / 100;
-      setItems(prev => prev.map(item => {
-        if (item.id === draggedItem) {
-           return {
-             ...item,
-             x: (e.clientX - rect.left - 20) / scale, 
-             y: (e.clientY - rect.top - 20) / scale
-           };
-        }
-        return item;
-      }));
-    }
-  };
-
-  const totalCost = items.reduce((sum, item) => sum + item.cost, 0);
-
-  const containerClasses = embedded 
-    ? "relative w-full h-[600px] flex flex-col border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden my-6 bg-slate-50 dark:bg-slate-900"
-    : "fixed inset-0 bg-slate-100 dark:bg-slate-950 z-[60] flex flex-col text-slate-900 dark:text-white";
-
-  return (
-    <div className={containerClasses}>
-      {/* Header / Toolbar */}
-      <div className={`${embedded ? 'h-12 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-3' : 'h-14 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4'} flex items-center justify-between shrink-0`}>
-        <div className="flex items-center gap-4">
-           {!embedded && onClose && (
-             <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors">
-               <ArrowLeft size={18} />
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 relative z-0">
+        {/* Header */}
+        <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 h-16 flex items-center justify-between px-4 lg:px-8 shrink-0 relative z-20">
+          <div className="flex items-center gap-4">
+             {/* Menu Button - Always visible now to toggle sidebar */}
+             <button onClick={() => setIsSidebarOpen(true)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg">
+                <Menu size={20} className="text-slate-600 dark:text-slate-300" />
              </button>
-           )}
-           {!embedded && (
-             <div>
-               <h2 className="font-bold text-sm">{project}</h2>
-               <div className="text-xs text-slate-500">Canvas Editor v2.0</div>
-             </div>
-           )}
-           
-           {/* Embedded Toolbar - Symbols */}
-           {embedded && (
-             <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-500 uppercase mr-2">Add Symbol:</span>
-                {SYMBOLS.map(sym => (
-                  <div 
-                    key={sym.id}
-                    draggable
-                    onDragStart={(e) => e.dataTransfer.setData('type', sym.id)}
-                    className="w-8 h-8 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg flex items-center justify-center cursor-grab hover:border-blue-500 hover:scale-105 transition-all shadow-sm"
-                    title={sym.label}
-                  >
-                    <sym.icon size={16} className={`${sym.color.replace('bg-', 'text-')}`} />
-                  </div>
-                ))}
-             </div>
-           )}
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 bg-white dark:bg-slate-700 rounded-lg p-1 border border-slate-200 dark:border-slate-600 shadow-sm">
-             <span className="text-[10px] font-bold uppercase text-slate-400 px-1">Zoom:</span>
-             <button onClick={() => setZoom(Math.max(50, zoom - 10))} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-600 rounded"><ZoomOut size={14} /></button>
-             <button onClick={() => setZoom(Math.min(200, zoom + 10))} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-600 rounded"><ZoomIn size={14} /></button>
-             <button onClick={() => setZoom(100)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-600 rounded"><Maximize size={14} /></button>
+             
+             {/* Home Button if deep in nav */}
+             {currentView !== 'dashboard' && (
+                 <button onClick={() => setCurrentView('dashboard')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hidden md:block" title="Back to Dashboard">
+                    <LayoutDashboard size={20} />
+                 </button>
+             )}
+             
+             {/* Center Search (visible on dashboard) */}
+             {currentView === 'dashboard' && (
+                <div className="hidden md:flex items-center w-96 relative">
+                    <Search className="absolute left-3 text-slate-400 w-4 h-4" />
+                    <input 
+                      type="text" 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search..." 
+                      className="w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-800 border-none rounded-full text-sm focus:ring-2 focus:ring-green-500/50 outline-none transition-all"
+                    />
+                </div>
+             )}
           </div>
-          
-          {embedded && (
-             <button 
-               onClick={() => { if(selectedItem) setItems(items.filter(i => i.id !== selectedItem)) }}
-               disabled={!selectedItem}
-               className="px-3 py-1.5 text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 rounded-lg text-xs font-bold flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-             >
-               <Trash2 size={14} /> Delete
-             </button>
-          )}
 
-          {!embedded && (
-            <div className="flex items-center gap-3">
-              <div className="text-right mr-4">
-                <div className="text-[10px] font-bold uppercase text-slate-500">Total Cost</div>
-                <div className="font-bold text-green-600 text-lg">${totalCost.toLocaleString()}</div>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+            >
+              {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
+            
+            {/* User Profile / Switcher for Demo */}
+            <div className="flex items-center gap-3 pl-3 border-l border-slate-200 dark:border-slate-700">
+              <div className="text-right hidden sm:block">
+                <div className="text-sm font-bold text-slate-900 dark:text-white">{currentUser.name}</div>
+                <div className="text-xs text-slate-500">{currentUser.role}</div>
               </div>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 flex items-center gap-2">
-                <Save size={16} /> Save
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white font-bold shadow-lg">
+                {currentUser.name.charAt(0)}
+              </div>
+              
+              {/* Quick Role Switcher for Testing */}
+              <div className="flex flex-col gap-1 ml-2">
+                 <button onClick={() => {
+                    setCurrentUser({ ...currentUser, role: UserRole.ADMIN, name: 'Admin', permissions: AVAILABLE_MODULES.map(m => ({ module: m.permission, access: true })).concat([{ module: 'admin', access: true }]) });
+                    setCurrentView('dashboard');
+                 }} className="text-[10px] bg-slate-200 px-1 rounded hover:bg-slate-300">Admin</button>
+                 <button onClick={() => {
+                    setCurrentUser({ ...currentUser, role: UserRole.TECHNICIAN, name: 'Tech', permissions: AVAILABLE_MODULES.map(m => ({ module: m.permission, access: ['crm', 'canvas', 'mapping', 'cad'].includes(m.id) })) });
+                    setCurrentView('dashboard');
+                 }} className="text-[10px] bg-slate-200 px-1 rounded hover:bg-slate-300">Tech</button>
+              </div>
+
+              <button onClick={handleLogout} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full transition-colors">
+                 <LogOut size={18} />
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        </header>
+
+        {/* Content Body */}
+        <main className="flex-1 overflow-hidden relative bg-slate-50 dark:bg-slate-950">
+           {/* Background Elements */}
+           <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-green-100/20 via-transparent to-transparent dark:from-green-900/10"></div>
+           </div>
+           
+           <div className="h-full relative z-10 overflow-auto scrollbar-thin">
+             {renderContent()}
+           </div>
+        </main>
       </div>
+
+      {/* AI Assistant */}
+      <AIAssistant 
+        isOpen={isAIAssistantOpen} 
+        onClose={() => { setIsAIAssistantOpen(false); setIsAIMinimized(false); }}
+        onMinimize={() => { setIsAIAssistantOpen(false); setIsAIMinimized(true); }}
+        isMinimized={isAIMinimized}
+      />
       
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Toolbar (Only if not embedded) */}
-        {!embedded && (
-          <div className="w-16 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col items-center py-4 gap-4 shrink-0">
-             <button className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl"><MousePointer2 size={20} /></button>
-             <button className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500"><Move size={20} /></button>
-             <div className="h-px w-8 bg-slate-200 dark:bg-slate-700 my-1"></div>
-             {SYMBOLS.map(sym => (
-               <div 
-                 key={sym.id}
-                 draggable
-                 onDragStart={(e) => e.dataTransfer.setData('type', sym.id)}
-                 className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl cursor-grab group relative"
-               >
-                 <sym.icon size={20} className="text-slate-600 dark:text-slate-400" />
-               </div>
-             ))}
-          </div>
-        )}
-
-        {/* Main Canvas Area */}
-        <div className="flex-1 bg-slate-200/50 dark:bg-slate-950/50 relative overflow-hidden flex items-center justify-center">
-           <div 
-              ref={canvasRef}
-              className="w-[2000px] h-[2000px] bg-white dark:bg-[#0B1120] shadow-2xl relative overflow-hidden cursor-crosshair"
-              style={{ 
-                transform: `scale(${zoom / 100})`, 
-                transformOrigin: 'center center',
-                backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'radial-gradient(#cbd5e1 1px, transparent 1px)',
-                backgroundSize: backgroundImage ? 'contain' : '40px 40px',
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: 'center'
-              }}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => handleDrop(e, e.dataTransfer.getData('type'))}
-              onMouseMove={onCanvasMouseMove}
-              onMouseUp={() => setDraggedItem(null)}
-              onClick={() => setSelectedItem(null)}
-           >
-              {/* Items */}
-              {items.map(item => (
-                 <div
-                   key={item.id}
-                   style={{ left: item.x, top: item.y }}
-                   className={`absolute p-3 rounded-full shadow-lg cursor-move group transition-transform ${
-                     selectedItem === item.id 
-                       ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/50 z-20' 
-                       : 'bg-white dark:bg-slate-800 hover:scale-110 z-10'
-                   }`}
-                   onMouseDown={(e) => { e.stopPropagation(); setDraggedItem(item.id); setSelectedItem(item.id); }}
-                 >
-                   <Zap size={24} className={selectedItem === item.id ? 'text-blue-600' : 'text-slate-700 dark:text-slate-200'} />
-                   <span className="absolute top-full mt-1 left-1/2 -translate-x-1/2 text-[10px] font-bold bg-black/75 text-white px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none">
-                     {item.label}
-                   </span>
-                 </div>
-              ))}
-              {!backgroundImage && items.length === 0 && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-50">
-                  <div className="text-center">
-                    <UploadCloud size={48} className="mx-auto mb-4 text-slate-300 dark:text-slate-700" />
-                    <h3 className="text-xl font-bold text-slate-400 dark:text-slate-600">Empty Canvas</h3>
-                    <p className="text-slate-400">Drag symbols to start</p>
-                  </div>
-                </div>
-              )}
-           </div>
-        </div>
-
-        {/* Right Inspector (Only if not embedded) */}
-        {!embedded && (
-          <div className="w-72 bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0">
-             {/* Inspector content ... */}
-             <div className="p-4 text-center text-sm text-slate-500">Select an item to edit properties</div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// --- Quote Automation with Embedded Canvas ---
-const QuoteAutomation = () => {
-  const [step, setStep] = useState<'details' | 'pricing' | 'analyzing' | 'results'>('details');
-  const [projectName, setProjectName] = useState('');
-  const [pricingTier, setPricingTier] = useState<'Basic' | 'Premium' | 'Deluxe'>('Basic');
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [uploadedFile, setUploadedFile] = useState<string | null>(null);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
-  const [canvasItems, setCanvasItems] = useState<CanvasItem[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const toggleType = (id: string) => {
-    setSelectedTypes(prev => prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]);
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setUploadedFile(reader.result as string);
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const handleUploadClick = () => fileInputRef.current?.click();
-
-  const mapBreakdownToItems = (breakdown: any[]) => {
-    const mapped: CanvasItem[] = [];
-    breakdown.forEach((entry, idx) => {
-       let type = 'sensor';
-       const name = entry.item.toLowerCase();
-       if (name.includes('light') || name.includes('led')) type = 'light';
-       else if (name.includes('shade') || name.includes('blind')) type = 'shade';
-       else if (name.includes('speaker') || name.includes('audio')) type = 'speaker';
-       else if (name.includes('camera') || name.includes('security')) type = 'cam';
-       
-       for (let i = 0; i < entry.quantity; i++) {
-         mapped.push({
-           id: `auto-${idx}-${i}`,
-           type: type as any,
-           x: 800 + (Math.random() * 400 - 200), // Center somewhat
-           y: 800 + (Math.random() * 400 - 200),
-           label: entry.item,
-           cost: entry.unitPrice || 0
-         });
-       }
-    });
-    return mapped;
-  };
-
-  const handleStandardQuote = () => {
-    const multiplier = pricingTier === 'Deluxe' ? 2.5 : pricingTier === 'Premium' ? 1.5 : 1;
-    const mockResult = {
-      detectedRooms: ['Living Room', 'Kitchen', 'Master Bedroom'],
-      breakdown: [
-        { item: 'Smart Switch Touch', quantity: 4, unitPrice: 280, total: 1120 },
-        { item: 'Presence Sensor', quantity: 3, unitPrice: 160, total: 480 },
-        { item: 'LED Spot RGBW', quantity: 8, unitPrice: 85, total: 680 }
-      ],
-      laborHours: 12,
-      laborCost: 1440,
-      subtotal: 2280,
-      grandTotal: 3720
-    };
-    setAnalysisResult(mockResult);
-    setCanvasItems(mapBreakdownToItems(mockResult.breakdown));
-    setStep('results');
-  };
-
-  const handleAIAnalysis = async () => {
-    setStep('analyzing');
-    if (uploadedFile) {
-      const result = await analyzeFloorplan(uploadedFile, selectedTypes.join(','), pricingTier);
-      if (result && typeof result !== 'string') {
-          setAnalysisResult(result);
-          setCanvasItems(mapBreakdownToItems(result.breakdown));
-      } else {
-          handleStandardQuote();
-      }
-    } else {
-      handleStandardQuote();
-    }
-    if (!uploadedFile) setTimeout(() => setStep('results'), 2000);
-    else setStep('results');
-  };
-
-  return (
-    <div className="max-w-6xl mx-auto p-6 animate-in slide-in-from-bottom-4 duration-500">
-      <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*,.pdf" className="hidden" />
-
-      <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-xl border border-slate-100 dark:border-slate-700 overflow-hidden">
-        {step !== 'analyzing' && (
-          <div className="p-8 border-b border-slate-100 dark:border-slate-700">
-             {/* Header Content Same As Before */}
-             <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-2xl flex items-center justify-center text-green-600 dark:text-green-400"><FileText size={24} /></div>
-              <div><h2 className="text-2xl font-bold text-slate-900 dark:text-white">AI Floor Plan Analysis</h2><p className="text-slate-500 dark:text-slate-400 text-sm">Step {step === 'details' ? '1' : step === 'pricing' ? '2' : '3'} of 3</p></div>
-            </div>
-
-             {/* Step 1 & 2 Content Preserved via conditional logic same as before... */}
-             {step === 'details' && (
-               <div className="space-y-8">
-                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Project Name</label>
-                  <input type="text" value={projectName} onChange={(e) => setProjectName(e.target.value)} className="w-full px-4 py-3.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-green-500" placeholder="Enter project name"/>
-                 </div>
-                 <div onClick={handleUploadClick} className={`border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer hover:border-green-500/50 ${uploadedFile ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50'}`}>
-                    {uploadedFile ? <div className="pointer-events-none"><ImageIcon className="w-8 h-8 text-green-600 mx-auto mb-2"/><p className="font-bold text-green-600">File Uploaded</p></div> : <div className="pointer-events-none"><UploadCloud className="w-8 h-8 text-green-600 mx-auto mb-2"/><p className="font-bold">Drop floor plan here</p></div>}
-                 </div>
-                 <div className="flex justify-end"><button onClick={() => setStep('pricing')} disabled={!projectName || !uploadedFile} className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 disabled:opacity-50">Next Step</button></div>
-               </div>
-             )}
-
-             {step === 'pricing' && (
-               <div className="space-y-8">
-                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">Select Pricing Tier</h3>
-                 <div className="grid grid-cols-3 gap-6">
-                   {['Basic', 'Premium', 'Deluxe'].map(tier => (
-                     <button key={tier} onClick={() => setPricingTier(tier as any)} className={`p-6 rounded-2xl border-2 text-left hover:shadow-lg transition-all ${pricingTier === tier ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-slate-200 dark:border-slate-700'}`}>
-                       <div className="font-bold text-lg mb-2">{tier}</div>
-                       <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${pricingTier === tier ? 'bg-green-500 border-green-500' : 'border-slate-300'}`}>{pricingTier === tier && <CheckSquare className="text-white w-3 h-3" />}</div>
-                     </button>
-                   ))}
-                 </div>
-                 <div className="flex justify-between pt-4">
-                   <button onClick={() => setStep('details')} className="px-6 py-3 text-slate-500 hover:bg-slate-100 rounded-xl font-bold">Back</button>
-                   <div className="flex gap-4">
-                     <button onClick={handleStandardQuote} className="px-6 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl font-bold flex gap-2 items-center"><Calculator size={18}/> Standard Quote</button>
-                     <button onClick={handleAIAnalysis} className="px-8 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 flex gap-2 items-center shadow-lg"><Sparkles size={18}/> AI Analysis</button>
-                   </div>
-                 </div>
-               </div>
-             )}
-
-             {step === 'results' && analysisResult && (
-               <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-300">
-                  <div className="p-4 bg-green-600 text-white rounded-xl shadow-lg flex items-center gap-3">
-                    <CheckCircle2 size={24} />
-                    <div>
-                      <h3 className="font-bold text-lg">Quote Generated with AI Vision</h3>
-                      <p className="text-green-100 text-sm">Analysis complete based on {pricingTier} tier.</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-800"><div className="text-xs font-bold text-blue-600 uppercase">Project</div><div className="font-bold text-lg">{projectName}</div></div>
-                    <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-100 dark:border-purple-800"><div className="text-xs font-bold text-purple-600 uppercase">Rooms</div><div className="font-bold text-lg">{analysisResult.detectedRooms.length} Zones</div></div>
-                    <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl border border-orange-100 dark:border-orange-800"><div className="text-xs font-bold text-orange-600 uppercase">Method</div><div className="font-bold text-lg flex items-center gap-2"><Sparkles size={16}/> Smart Grid</div></div>
-                  </div>
-
-                  {/* Embedded Canvas Editor */}
-                  <div className="rounded-2xl overflow-hidden border border-green-200 dark:border-green-900/50 shadow-lg">
-                    <div className="bg-green-600 p-3 px-4 flex justify-between items-center">
-                      <div className="flex items-center gap-2 text-white font-bold"><PenTool size={18}/> Interactive Floorplan Editor</div>
-                      <div className="text-xs text-green-100">Drag symbols to customize placement • Edit in real-time</div>
-                    </div>
-                    <CanvasEditor 
-                      project={projectName} 
-                      embedded={true} 
-                      initialItems={canvasItems} 
-                      backgroundImage={uploadedFile}
-                    />
-                  </div>
-
-                  {/* Cost Breakdown */}
-                  <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden">
-                    <div className="p-4 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold flex items-center gap-2"><FileText size={18}/> Cost Breakdown</div>
-                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {analysisResult.breakdown.map((item: any, i: number) => (
-                        <div key={i} className="flex justify-between p-4"><span className="text-slate-600 dark:text-slate-300">{item.quantity}x {item.item}</span><span className="font-bold">${item.total.toLocaleString()}</span></div>
-                      ))}
-                      <div className="flex justify-between p-6 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-100 text-2xl font-bold border-t border-green-200 dark:border-green-900"><span>GRAND TOTAL</span><span>${analysisResult.grandTotal?.toLocaleString()}</span></div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-                     <button onClick={() => setStep('details')} className="text-slate-400 text-sm">Start New</button>
-                     <div className="flex gap-3">
-                       <button className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg flex gap-2 items-center"><FileDown size={18}/> Export PDF</button>
-                       <button className="px-6 py-3 bg-white dark:bg-slate-800 border rounded-xl font-bold">Save to CRM</button>
-                     </div>
-                  </div>
-               </div>
-             )}
-          </div>
-        )}
-        {step === 'analyzing' && (
-          <div className="p-24 text-center animate-in zoom-in">
-            <div className="w-24 h-24 border-4 border-green-100 dark:border-green-900 rounded-full border-t-green-500 animate-spin mb-8 mx-auto"></div>
-            <h2 className="text-2xl font-bold mb-2">Analyzing...</h2>
-            <p className="text-slate-500">Using Gemini Vision to identify layout.</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// --- Electrical Mapping ---
-const ElectricalMapping = () => {
-  const [activeTab, setActiveTab] = useState<'schedule' | 'visual' | 'mapping'>('visual');
-  const [circuits, setCircuits] = useState([
-    { slot: 1, pole: 'L1', breaker: 20, label: 'Kitchen GPO 1', load: 1200, devices: 4, type: '1P' },
-    { slot: 2, pole: 'L1', breaker: 16, label: 'Kitchen Lights', load: 450, devices: 12, type: '1P' },
-    { slot: 3, pole: 'L2', breaker: 20, label: 'Living Room Power', load: 800, devices: 6, type: '1P' },
-    { slot: 4, pole: 'L2', breaker: 16, label: 'Living Room Lights', load: 300, devices: 8, type: '1P' },
-    { slot: 5, pole: 'L3', breaker: 32, label: 'Induction Cooktop', load: 5400, devices: 1, type: '1P' },
-    { slot: 6, pole: 'L3', breaker: 25, label: 'Oven', load: 3200, devices: 1, type: '1P' },
-    { slot: 7, pole: 'L1', breaker: 10, label: 'Smoke Alarms', load: 50, devices: 5, type: '1P' },
-    { slot: 8, pole: 'L2', breaker: 20, label: 'Bedroom 1 Power', load: 600, devices: 4, type: '1P' },
-  ]);
-
-  const totalLoad = circuits.reduce((acc, c) => acc + c.load, 0);
-  const maxLoad = 15000; // Example max watts
-  const loadPercentage = Math.round((totalLoad / maxLoad) * 100);
-
-  return (
-    <div className="p-8 max-w-7xl mx-auto animate-in fade-in duration-500 space-y-8">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-           <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Electrical Mapping</h1>
-           <p className="text-slate-500 dark:text-slate-400 text-sm">Circuit schedule, load balancing, and device mapping.</p>
-        </div>
-        <div className="flex gap-3">
-          <button className="btn-secondary px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-            <Download size={18} /> Export Schedule
-          </button>
-          <button className="btn-primary px-4 py-2 bg-amber-500 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-amber-600 shadow-lg shadow-amber-500/20 transition-colors">
-            <Plus size={18} /> Add Circuit
-          </button>
-        </div>
-      </div>
-
-      {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-            <div className="flex items-center gap-4 mb-4">
-               <div className="p-3 bg-amber-100 dark:bg-amber-900/20 text-amber-600 rounded-xl"><Zap size={24}/></div>
-               <div>
-                 <div className="text-sm text-slate-500 dark:text-slate-400 font-bold uppercase">Total Load</div>
-                 <div className="text-2xl font-bold text-slate-900 dark:text-white">{(totalLoad / 1000).toFixed(1)} kW</div>
-               </div>
-            </div>
-            <div className="w-full bg-slate-100 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
-               <div className={`h-full rounded-full ${loadPercentage > 80 ? 'bg-red-500' : 'bg-green-500'}`} style={{width: `${loadPercentage}%`}}></div>
-            </div>
-            <div className="mt-2 text-xs text-slate-500 text-right">{loadPercentage}% Capacity</div>
-         </div>
-
-         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-            <div className="flex items-center gap-4">
-               <div className="p-3 bg-blue-100 dark:bg-blue-900/20 text-blue-600 rounded-xl"><Activity size={24}/></div>
-               <div>
-                 <div className="text-sm text-slate-500 dark:text-slate-400 font-bold uppercase">Active Circuits</div>
-                 <div className="text-2xl font-bold text-slate-900 dark:text-white">{circuits.length}</div>
-               </div>
-            </div>
-            <div className="mt-4 flex gap-2">
-              <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs font-bold text-slate-500">8 SP</span>
-              <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700 rounded text-xs font-bold text-slate-500">0 3P</span>
-            </div>
-         </div>
-
-         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm">
-            <div className="flex items-center gap-4">
-               <div className="p-3 bg-green-100 dark:bg-green-900/20 text-green-600 rounded-xl"><CheckCircle2 size={24}/></div>
-               <div>
-                 <div className="text-sm text-slate-500 dark:text-slate-400 font-bold uppercase">Compliance</div>
-                 <div className="text-2xl font-bold text-slate-900 dark:text-white">Pass</div>
-               </div>
-            </div>
-            <div className="mt-4 text-xs text-green-600 font-bold bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded w-fit">
-               NEC 2023 Compliant
-            </div>
-         </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
-        <button onClick={() => setActiveTab('visual')} className={`px-4 py-2 font-bold text-sm border-b-2 transition-colors ${activeTab === 'visual' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Visual Board</button>
-        <button onClick={() => setActiveTab('schedule')} className={`px-4 py-2 font-bold text-sm border-b-2 transition-colors ${activeTab === 'schedule' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Schedule List</button>
-        <button onClick={() => setActiveTab('mapping')} className={`px-4 py-2 font-bold text-sm border-b-2 transition-colors ${activeTab === 'mapping' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Device Mapping</button>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-         {/* Visual Panel (Always visible or conditionally based on design choice, here conditional for tab focus) */}
-         {(activeTab === 'visual' || activeTab === 'mapping') && (
-           <div className="bg-slate-800 dark:bg-slate-900 rounded-2xl border-4 border-slate-300 dark:border-slate-700 p-4 shadow-2xl lg:col-span-1 h-fit">
-               <div className="text-center text-slate-400 text-xs font-bold uppercase mb-4 tracking-widest">Distribution Board 1</div>
-               <div className="bg-slate-900 dark:bg-black rounded-lg p-2 space-y-1 border border-slate-700 relative">
-                  {/* Main Switch */}
-                  <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-20 h-10 bg-red-600 rounded-t-lg border-x-2 border-t-2 border-red-800 flex items-center justify-center shadow-lg z-10">
-                    <span className="text-white text-[10px] font-bold">MAIN</span>
-                  </div>
-
-                  {/* Breakers Grid */}
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-4">
-                     {Array.from({length: 12}).map((_, i) => {
-                       const circuit = circuits.find(c => c.slot === i + 1);
-                       return (
-                         <div key={i} className="flex items-center gap-1 group cursor-pointer">
-                           <div className="text-[10px] text-slate-600 w-4 text-right">{i + 1}</div>
-                           <div className={`h-8 flex-1 rounded border-b-2 shadow-inner relative transition-all ${circuit ? 'bg-slate-700 border-slate-900 hover:bg-slate-600' : 'bg-slate-800 border-slate-950 opacity-50'}`}>
-                             {circuit && (
-                               <>
-                                 <div className={`absolute top-1 left-1 right-1 h-1 rounded-full ${circuit.load > (circuit.breaker * 100) ? 'bg-red-500' : 'bg-green-500'}`}></div>
-                                 <div className="absolute center inset-0 flex items-center justify-center text-[9px] font-bold text-white">{circuit.breaker}A</div>
-                               </>
-                             )}
-                           </div>
-                         </div>
-                       )
-                     })}
-                  </div>
-               </div>
-               <div className="mt-4 p-3 bg-slate-700/50 rounded-lg border border-slate-600">
-                 <div className="text-xs text-slate-300 font-bold mb-2">Selected Circuit Details</div>
-                 <div className="text-xs text-slate-400">Click a breaker above to view connected devices and detailed load information.</div>
-               </div>
-           </div>
-         )}
-
-         {/* Right Content based on Tab */}
-         <div className={`${activeTab === 'schedule' ? 'lg:col-span-3' : 'lg:col-span-2'} bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col`}>
-             {activeTab === 'mapping' && (
-               <div className="p-6 flex-1 flex flex-col items-center justify-center text-center space-y-4">
-                  <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
-                    <Wrench className="text-slate-400 w-8 h-8" />
-                  </div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Device Mapping Mode</h3>
-                  <p className="text-slate-500 max-w-md">Select a circuit on the left to highlight mapped devices on your floorplan. Drag devices from the unassigned list to a circuit to map them.</p>
-                  <button className="px-6 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm">Open Floorplan Overlay</button>
-               </div>
-             )}
-
-             {activeTab !== 'mapping' && (
-               <>
-                 <div className="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 font-bold text-sm text-slate-700 dark:text-slate-300 flex justify-between">
-                    <span>Panel Schedule</span>
-                    <span className="text-xs font-normal text-slate-500">DB-1 • 240V • 1 Phase</span>
-                 </div>
-                 <div className="overflow-auto flex-1">
-                   <table className="w-full text-left text-sm">
-                     <thead className="bg-slate-50 dark:bg-slate-900 text-xs uppercase text-slate-500 font-bold">
-                       <tr>
-                         <th className="p-3 pl-6 w-16">Slot</th>
-                         <th className="p-3 w-20">Amps</th>
-                         <th className="p-3">Description</th>
-                         <th className="p-3">Load (W)</th>
-                         <th className="p-3 text-right pr-6">Status</th>
-                       </tr>
-                     </thead>
-                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                       {circuits.map(c => (
-                         <tr key={c.slot} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors group">
-                           <td className="p-3 pl-6 font-mono text-slate-400">#{c.slot}</td>
-                           <td className="p-3 font-bold">{c.breaker}A</td>
-                           <td className="p-3">
-                             <div className="font-medium text-slate-900 dark:text-white">{c.label}</div>
-                             <div className="text-xs text-slate-500">{c.devices} Devices Connected</div>
-                           </td>
-                           <td className="p-3 font-mono">{c.load}W</td>
-                           <td className="p-3 text-right pr-6">
-                             <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-600 rounded"><Edit2 size={14} className="text-slate-500"/></button>
-                                <button className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded"><Trash2 size={14} className="text-red-500"/></button>
-                             </div>
-                           </td>
-                         </tr>
-                       ))}
-                     </tbody>
-                   </table>
-                 </div>
-               </>
-             )}
-         </div>
-      </div>
-    </div>
-  );
-};
-
-// --- Admin Panel ---
-const AdminPanel = () => {
-  const [users] = useState<User[]>([
-    { id: '1', name: 'Admin User', email: 'admin@integratd.com', role: UserRole.ADMIN, status: 'Active', lastLogin: 'Today', permissions: [] },
-    { id: '2', name: 'Technician Tom', email: 'tom@integratd.com', role: UserRole.TECHNICIAN, status: 'Active', lastLogin: 'Yesterday', permissions: [] },
-    { id: '3', name: 'Sarah Sales', email: 'sarah@integratd.com', role: UserRole.SALES, status: 'Active', lastLogin: '2 hours ago', permissions: [] },
-  ]);
-
-  return (
-    <div className="p-8 max-w-7xl mx-auto animate-in fade-in duration-500 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-           <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Admin Panel</h1>
-           <p className="text-slate-500 dark:text-slate-400 text-sm">Manage system users, roles, and permissions.</p>
-        </div>
-        <button className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-600/20 transition-all flex items-center gap-2">
-          <Plus size={18} /> Add User
+      {/* AI Toggle Button (if closed) */}
+      {!isAIAssistantOpen && !isAIMinimized && (
+        <button 
+          onClick={() => setIsAIAssistantOpen(true)}
+          className="fixed bottom-6 right-6 bg-gradient-to-br from-slate-900 to-black text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-all group z-50 border border-white/10"
+        >
+          <Sparkles className="w-6 h-6 group-hover:rotate-12 transition-transform text-green-400" />
+          <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-ping"></span>
+          <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full"></span>
         </button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <StatCard title="Total Users" value="12" icon={Users} onClick={() => {}} />
-        <StatCard title="Active Sessions" value="4" icon={Activity} onClick={() => {}} />
-        <StatCard title="System Health" value="98%" trend="+1%" icon={Activity} onClick={() => {}} /> 
-      </div>
-
-      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 overflow-hidden shadow-sm">
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
-          <h3 className="font-bold text-lg text-slate-900 dark:text-white">User Directory</h3>
-          <div className="flex gap-2">
-            <button className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-500"><Filter size={18} /></button>
-            <button className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg text-slate-500"><Download size={18} /></button>
-          </div>
-        </div>
-        <table className="w-full text-left">
-          <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-xs uppercase font-bold text-slate-500">
-            <tr>
-              <th className="p-4 pl-6">User</th>
-              <th className="p-4">Role</th>
-              <th className="p-4">Status</th>
-              <th className="p-4">Last Login</th>
-              <th className="p-4 text-right pr-6">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-            {users.map(user => (
-              <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                <td className="p-4 pl-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-xs">
-                      {user.name.charAt(0)}
-                    </div>
-                    <div>
-                      <div className="font-bold text-slate-900 dark:text-white text-sm">{user.name}</div>
-                      <div className="text-xs text-slate-500">{user.email}</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="p-4">
-                  <span className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                    {user.role}
-                  </span>
-                </td>
-                <td className="p-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-bold ${user.status === 'Active' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
-                    {user.status}
-                  </span>
-                </td>
-                <td className="p-4 text-sm text-slate-500">{user.lastLogin}</td>
-                <td className="p-4 text-right pr-6">
-                   <div className="flex items-center justify-end gap-2">
-                     <button className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"><Edit2 size={14}/></button>
-                     <button className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"><Trash2 size={14}/></button>
-                   </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      )}
+      
+      {/* Minimized AI Bubble */}
+      {isAIMinimized && (
+        <AIAssistant 
+          isOpen={true}
+          onClose={() => { setIsAIAssistantOpen(false); setIsAIMinimized(false); }}
+          onMinimize={() => { setIsAIMinimized(false); setIsAIAssistantOpen(true); }}
+          isMinimized={true}
+        />
+      )}
     </div>
   );
 };
 
-// ... (App shell logic preserved) ...
-export default function App() {
-  const [currentView, setCurrentView] = useState<ViewState>('dashboard');
-  const [isAIOpen, setIsAIOpen] = useState(false);
-  const [isAIMinimized, setIsAIMinimized] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [darkMode]);
-
-  const renderView = () => {
-    switch(currentView) {
-      case 'crm': return <CRMDashboard searchQuery={searchQuery} />;
-      case 'quotes': return <QuoteAutomation />;
-      case 'canvas': return <CanvasEditor project="Untitled Project" onClose={() => setCurrentView('dashboard')} />;
-      case 'mapping': return <ElectricalMapping />;
-      case 'admin': return <AdminPanel />;
-      case 'dashboard': return <Dashboard onNavigate={setCurrentView} />;
-      default: return <Dashboard onNavigate={setCurrentView} />;
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans text-slate-900 dark:text-white flex flex-col transition-colors duration-300">
-      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 h-16 flex items-center justify-between px-6 sticky top-0 z-40 shadow-sm shrink-0">
-        <div className="flex items-center gap-4">
-          {currentView !== 'dashboard' && <button onClick={() => setCurrentView('dashboard')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-slate-500 dark:text-slate-400 transition-colors"><ArrowLeft size={20} /></button>}
-          <div className="flex items-center gap-3 group cursor-pointer" onClick={() => setCurrentView('dashboard')}>
-            <span className="font-bold text-lg tracking-tight text-slate-800 dark:text-white">Integratd Living</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-           <div className="relative hidden md:block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" /><input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 pr-4 py-1.5 bg-slate-100 dark:bg-slate-800 border-none rounded-lg text-sm text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-green-500/50 outline-none transition-all w-64" /></div>
-           <button onClick={() => setDarkMode(!darkMode)} className="p-2 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg transition-colors">{darkMode ? <Sun size={20} /> : <Moon size={20} />}</button>
-        </div>
-      </header>
-      <main className="flex-1 relative overflow-hidden flex flex-col">{renderView()}</main>
-      <AIAssistant isOpen={isAIOpen || isAIMinimized} onClose={() => setIsAIOpen(false)} onMinimize={() => setIsAIMinimized(!isAIMinimized)} isMinimized={isAIMinimized} />
-      {!isAIOpen && !isAIMinimized && <button onClick={() => { setIsAIOpen(true); setIsAIMinimized(false); }} className="fixed bottom-8 right-8 p-4 bg-gradient-to-r from-green-700 to-green-800 text-white rounded-full shadow-xl shadow-green-900/30 flex items-center justify-center transition-all hover:scale-110 hover:from-green-600 hover:to-green-700 z-50 ring-4 ring-white/20 backdrop-blur-sm"><Brain size={24} className="fill-current" /></button>}
-    </div>
-  );
-}
+export default App;
