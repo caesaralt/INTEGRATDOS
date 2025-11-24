@@ -94,7 +94,9 @@ import {
   Loader,
   Sliders,
   ChevronLeft,
-  Bot
+  Bot,
+  MoreHorizontal,
+  Home
 } from 'lucide-react';
 import AIAssistant from './components/AIAssistant';
 import { User, UserRole, CanvasItem } from './types';
@@ -551,7 +553,7 @@ const QuoteAutomation = ({ onSaveToCRM }: { onSaveToCRM: (data: any) => void }) 
             </div>
          </div>
 
-         <div className="max-w-4xl mx-auto w-full bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+         <div className="max-w-4xl mx-auto w-full bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 overflow-hidden mb-8">
              <div className="p-8 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/50 flex items-center gap-4">
                 <div className="w-12 h-12 rounded-xl bg-green-100 dark:bg-green-900/20 text-green-600 flex items-center justify-center">
                    <Brain size={24} />
@@ -694,7 +696,7 @@ const QuoteAutomation = ({ onSaveToCRM }: { onSaveToCRM: (data: any) => void }) 
 
         <div className="flex-1 flex overflow-hidden">
             {/* Left Sidebar: Breakdown & Tools */}
-            <div className="w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-10 shadow-xl">
+            <div className="w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-10 shadow-xl overflow-hidden">
                  <div className="flex-1 overflow-y-auto p-4">
                      <div className="mb-6">
                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Symbol Toolbox</h3>
@@ -913,55 +915,142 @@ const CanvasEditor = () => {
 };
 
 const OperationsBoard = () => {
-  const [tasks, setTasks] = useState<{ id: string, title: string, status: string }[]>([
-    { id: '1', title: 'Order Loxone Miniserver', status: 'To Do' },
-    { id: '2', title: 'Draft Circuit Plan', status: 'In Progress' },
+  const [tasks, setTasks] = useState<{ id: string, title: string, status: string, tags: string[], users: number }[]>([
+    { id: '1', title: 'Order Loxone Miniserver', status: 'To Do', tags: ['Procurement', 'High Priority'], users: 2 },
+    { id: '2', title: 'Draft Circuit Plan', status: 'Working On', tags: ['Design', 'Electrical'], users: 1 },
+    { id: '3', title: 'Client Approval Pending', status: 'Stuck', tags: ['Admin'], users: 1 },
+    { id: '4', title: 'Final Inspection', status: 'Finished', tags: ['Site'], users: 3 },
   ]);
+  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const addTask = (status: string) => {
-    const title = prompt("Enter task name:");
-    if (title) {
-        setTasks([...tasks, { id: Date.now().toString(), title, status }]);
+  const columns = [
+     { id: 'To Do', color: 'bg-red-500', icon: ClipboardList },
+     { id: 'Working On', color: 'bg-blue-500', icon: Loader },
+     { id: 'Stuck', color: 'bg-yellow-500', icon: AlertCircle },
+     { id: 'Review', color: 'bg-purple-500', icon: Eye },
+     { id: 'Finished', color: 'bg-green-500', icon: CheckCircle2 }
+  ];
+
+  const handleDragStart = (e: React.DragEvent, id: string) => {
+    setDraggedTaskId(id);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent, status: string) => {
+    e.preventDefault();
+    if (draggedTaskId) {
+      setTasks(tasks.map(t => t.id === draggedTaskId ? { ...t, status } : t));
+      setDraggedTaskId(null);
     }
   };
 
-  const moveTask = (id: string, newStatus: string) => {
-      setTasks(tasks.map(t => t.id === id ? { ...t, status: newStatus } : t));
+  const handleAddTask = (data: any) => {
+    const newTask = {
+        id: Date.now().toString(),
+        title: data.title,
+        status: 'To Do',
+        tags: [data.tag || 'General'],
+        users: 1
+    };
+    setTasks([...tasks, newTask]);
+    setIsModalOpen(false);
   };
 
+  const filteredTasks = tasks.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase()));
+
   return (
-    <div className="h-full p-6 overflow-x-auto whitespace-nowrap bg-slate-50 dark:bg-slate-900 animate-in fade-in duration-300">
-      <div className="flex gap-6 h-full">
-         {['To Do', 'In Progress', 'Blocked', 'Completed'].map((status) => (
-           <div key={status} className="w-80 h-full inline-block align-top whitespace-normal">
-              <div className="bg-slate-100 dark:bg-slate-800 rounded-xl h-full flex flex-col max-h-full border border-slate-200 dark:border-slate-700">
-                 <div className="p-4 font-bold text-slate-700 dark:text-slate-200 flex justify-between items-center sticky top-0 bg-inherit rounded-t-xl z-10">
-                    {status}
-                    <span className="bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded-full text-xs">
-                        {tasks.filter(t => t.status === status).length}
-                    </span>
-                 </div>
-                 <div className="p-4 pt-0 flex-1 overflow-y-auto space-y-3">
-                    {tasks.filter(t => t.status === status).map(task => (
-                        <div key={task.id} className="bg-white dark:bg-slate-900 p-3 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 group">
-                            <div className="text-sm font-medium text-slate-800 dark:text-slate-200 mb-2">{task.title}</div>
-                            <div className="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity gap-1">
-                                {status !== 'To Do' && <button onClick={() => moveTask(task.id, 'To Do')} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded" title="Move to To Do"><ArrowLeft size={12} /></button>}
-                                {status !== 'Completed' && <button onClick={() => moveTask(task.id, 'Completed')} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded" title="Move to Completed"><Check size={12} /></button>}
-                            </div>
-                        </div>
-                    ))}
-                    <button 
-                        onClick={() => addTask(status)}
-                        className="w-full py-2 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg text-slate-400 text-sm font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                    >
-                       + Add Task
-                    </button>
-                 </div>
-              </div>
-           </div>
-         ))}
+    <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 animate-in fade-in duration-300">
+      <div className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between px-6 shrink-0 z-20">
+         <div className="flex items-center gap-3">
+             <div className="p-2 bg-indigo-100 dark:bg-indigo-900/20 text-indigo-600 rounded-lg">
+                <ClipboardList size={20} />
+             </div>
+             <h2 className="text-xl font-bold text-slate-900 dark:text-white">Operations Board</h2>
+         </div>
+         <div className="flex items-center gap-3">
+             <div className="relative">
+                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                 <input 
+                   type="text" 
+                   value={searchQuery}
+                   onChange={(e) => setSearchQuery(e.target.value)}
+                   placeholder="Search tasks..."
+                   className="pl-9 pr-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-indigo-500 outline-none w-64"
+                 />
+             </div>
+             <button className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"><Settings size={20} /></button>
+             <button onClick={() => setIsModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg shadow-indigo-600/20 flex items-center gap-2">
+                 <Plus size={16} /> Add Task
+             </button>
+         </div>
       </div>
+
+      <div className="flex-1 overflow-x-auto overflow-y-hidden p-6">
+         <div className="flex h-full gap-6 min-w-[1200px]">
+            {columns.map(col => (
+               <div 
+                 key={col.id} 
+                 className="flex-1 min-w-[280px] flex flex-col bg-slate-100 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800/50 h-full max-h-full"
+                 onDragOver={handleDragOver}
+                 onDrop={(e) => handleDrop(e, col.id)}
+               >
+                  <div className="p-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-800/50">
+                     <div className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200 text-sm uppercase tracking-wide">
+                        <div className={`w-2 h-2 rounded-full ${col.color}`}></div>
+                        {col.id}
+                     </div>
+                     <span className="bg-white dark:bg-slate-800 px-2 py-0.5 rounded-md text-xs font-bold text-slate-500 shadow-sm border border-slate-100 dark:border-slate-700">
+                        {filteredTasks.filter(t => t.status === col.id).length}
+                     </span>
+                  </div>
+                  
+                  <div className="p-3 flex-1 overflow-y-auto space-y-3 scrollbar-thin">
+                     {filteredTasks.filter(t => t.status === col.id).map(task => (
+                        <div 
+                           key={task.id}
+                           draggable
+                           onDragStart={(e) => handleDragStart(e, task.id)}
+                           className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm hover:shadow-md border border-slate-200 dark:border-slate-700 cursor-grab active:cursor-grabbing group transition-all"
+                        >
+                           <div className="flex justify-between items-start mb-2">
+                              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-500 text-[10px] rounded font-bold uppercase tracking-wider">{task.tags[0]}</span>
+                              <button className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-slate-600"><MoreHorizontal size={14} /></button>
+                           </div>
+                           <h4 className="font-bold text-slate-800 dark:text-slate-100 mb-3 text-sm leading-snug">{task.title}</h4>
+                           <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700/50">
+                              <div className="flex -space-x-1">
+                                 {Array.from({length: task.users}).map((_, i) => (
+                                    <div key={i} className="w-6 h-6 rounded-full bg-indigo-500 border-2 border-white dark:border-slate-800 flex items-center justify-center text-[8px] text-white font-bold">
+                                       {String.fromCharCode(65+i)}
+                                    </div>
+                                 ))}
+                              </div>
+                              <div className="text-xs text-slate-400 font-medium">#{task.id}</div>
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+               </div>
+            ))}
+         </div>
+      </div>
+      
+      <ItemModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="Add New Task"
+        onSave={handleAddTask}
+        fields={[
+            { key: 'title', label: 'Task Title', placeholder: 'Describe the task...' },
+            { key: 'tag', label: 'Category Tag', placeholder: 'e.g. Electrical, Site, Admin' }
+        ]}
+      />
     </div>
   );
 };
@@ -1393,7 +1482,7 @@ const ElectricalMapping = ({ onBack }: { onBack: () => void }) => {
         </div>
       </div>
       <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
            <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
               <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
                  <h3 className="font-bold text-slate-900 dark:text-white">Main Distribution Board</h3>
@@ -1445,8 +1534,8 @@ const ElectricalMapping = ({ onBack }: { onBack: () => void }) => {
               </div>
            </div>
         </div>
-        <div className="w-full lg:w-96 bg-slate-100 dark:bg-slate-950 border-l border-slate-200 dark:border-slate-800 p-6 overflow-y-auto">
-           <div className="mb-6 flex items-center justify-between">
+        <div className="w-full lg:w-96 bg-slate-100 dark:bg-slate-950 border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0 h-[300px] lg:h-auto">
+           <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
               <h3 className="font-bold text-slate-500 uppercase text-xs tracking-wider">Visual Board</h3>
               <div className="flex gap-2">
                 <button onClick={() => setZoom(prev => Math.min(prev + 0.1, 2))} className="p-1.5 bg-white dark:bg-slate-800 rounded shadow-sm hover:bg-slate-50"><ZoomIn size={14} className="text-slate-500" /></button>
@@ -1454,38 +1543,40 @@ const ElectricalMapping = ({ onBack }: { onBack: () => void }) => {
               </div>
            </div>
            
-           <div 
-             className="bg-slate-300 dark:bg-slate-800 p-4 rounded-xl shadow-inner border-4 border-slate-400 dark:border-slate-700 mx-auto max-w-xs transition-transform origin-top"
-             style={{ transform: `scale(${zoom})` }}
-           >
-              <div className="bg-slate-200 dark:bg-slate-900 rounded-lg p-2 space-y-1">
-                 {Array.from({ length: Math.ceil(circuits.length / 2) }).map((_, rowIdx) => {
-                    const left = circuits[rowIdx * 2];
-                    const right = circuits[rowIdx * 2 + 1];
-                    return (
-                      <div key={rowIdx} className="flex items-center justify-between gap-4 h-8">
-                         <div className="flex-1 h-full flex items-center justify-end">
-                            {left && (
-                              <div className={`h-full w-full rounded-l flex items-center justify-center text-[10px] font-bold text-white border-r border-slate-900/20 ${left.label === 'Spare' ? 'bg-slate-400' : 'bg-slate-800'}`}>
-                                {left.amps}
-                              </div>
-                            )}
-                         </div>
-                         <div className="w-4 h-full bg-slate-400 dark:bg-slate-700 flex flex-col justify-center items-center gap-1">
-                            <div className="w-1 h-1 rounded-full bg-slate-500"></div>
-                            <div className="w-1 h-1 rounded-full bg-slate-500"></div>
-                         </div>
-                         <div className="flex-1 h-full flex items-center justify-start">
-                           {right && (
-                              <div className={`h-full w-full rounded-r flex items-center justify-center text-[10px] font-bold text-white border-l border-slate-900/20 ${right.label === 'Spare' ? 'bg-slate-400' : 'bg-slate-800'}`}>
-                                {right.amps}
-                              </div>
-                           )}
-                         </div>
-                      </div>
-                    );
-                 })}
-              </div>
+           <div className="flex-1 overflow-auto p-6 flex justify-center items-start scrollbar-thin">
+               <div 
+                 className="bg-slate-300 dark:bg-slate-800 p-4 rounded-xl shadow-inner border-4 border-slate-400 dark:border-slate-700 transition-transform origin-top"
+                 style={{ transform: `scale(${zoom})` }}
+               >
+                  <div className="bg-slate-200 dark:bg-slate-900 rounded-lg p-2 space-y-1 w-64">
+                     {Array.from({ length: Math.ceil(circuits.length / 2) }).map((_, rowIdx) => {
+                        const left = circuits[rowIdx * 2];
+                        const right = circuits[rowIdx * 2 + 1];
+                        return (
+                          <div key={rowIdx} className="flex items-center justify-between gap-4 h-8">
+                             <div className="flex-1 h-full flex items-center justify-end">
+                                {left && (
+                                  <div className={`h-full w-full rounded-l flex items-center justify-center text-[10px] font-bold text-white border-r border-slate-900/20 ${left.label === 'Spare' ? 'bg-slate-400' : 'bg-slate-800'}`}>
+                                    {left.amps}
+                                  </div>
+                                )}
+                             </div>
+                             <div className="w-4 h-full bg-slate-400 dark:bg-slate-700 flex flex-col justify-center items-center gap-1">
+                                <div className="w-1 h-1 rounded-full bg-slate-500"></div>
+                                <div className="w-1 h-1 rounded-full bg-slate-500"></div>
+                             </div>
+                             <div className="flex-1 h-full flex items-center justify-start">
+                               {right && (
+                                  <div className={`h-full w-full rounded-r flex items-center justify-center text-[10px] font-bold text-white border-l border-slate-900/20 ${right.label === 'Spare' ? 'bg-slate-400' : 'bg-slate-800'}`}>
+                                    {right.amps}
+                                  </div>
+                               )}
+                             </div>
+                          </div>
+                        );
+                     })}
+                  </div>
+               </div>
            </div>
         </div>
       </div>
@@ -2094,7 +2185,7 @@ const App = () => {
             </div>
             
             {/* CRM Content Area */}
-            <div className="flex-1 overflow-y-auto relative">
+            <div className="flex-1 overflow-y-auto relative scrollbar-thin">
                {currentCrmView === 'overview' && (
                   <div className="p-8">
                      <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Dashboard Overview</h2>
@@ -2193,9 +2284,9 @@ const App = () => {
         );
 
         return (
-          <div className="p-8 max-w-7xl mx-auto animate-in fade-in duration-500">
+          <div className="p-8 max-w-7xl mx-auto animate-in fade-in duration-500 overflow-y-auto h-full scrollbar-thin">
              {filteredModules.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-20">
                    {filteredModules.map((mod) => (
                       <ModuleCard 
                          key={mod.id}
@@ -2262,7 +2353,7 @@ const App = () => {
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 relative z-0">
+      <div className="flex-1 flex flex-col min-w-0 relative z-0 h-screen overflow-hidden">
         {/* Header */}
         <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 h-16 flex items-center justify-between px-4 lg:px-8 shrink-0 relative z-20">
           <div className="flex items-center gap-4">
@@ -2274,7 +2365,7 @@ const App = () => {
              {/* Home Button if deep in nav */}
              {currentView !== 'dashboard' && (
                  <button onClick={() => setCurrentView('dashboard')} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hidden md:block" title="Back to Dashboard">
-                    <LayoutDashboard size={20} />
+                    <Home size={20} />
                  </button>
              )}
              
@@ -2337,7 +2428,7 @@ const App = () => {
               <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-green-100/20 via-transparent to-transparent dark:from-green-900/10"></div>
            </div>
            
-           <div className="h-full relative z-10 overflow-auto scrollbar-thin">
+           <div className="h-full relative z-10 w-full">
              {renderContent()}
            </div>
         </main>
